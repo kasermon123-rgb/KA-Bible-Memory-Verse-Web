@@ -79,26 +79,22 @@
             <!-- Card container for practice mode content -->
             <section class="card">
 
-                <!-- Row for showing the selected verse reference -->
+                <!-- Row for showing the selected verse version notice -->
                 <div class="row">
-
-                    <!-- Label for the verse reference -->
-                    <label>Verse</label>
-
-                    <!-- JavaScript inserts the verse reference here -->
-                    <div class="ref" id="practiceVerseTitle"></div>
-
+                    <!-- Label for the verse version notice -->
+                    <label>Version</label>
+                    <div class="ref" id="practiceVersionLabel"></div>
                 </div>
-
-                <!-- JavaScript inserts the optional title here -->
-                <div class="ref" id="practiceTitle"></div>
-
-                <!-- JavaScript inserts the verse text here -->
-                <div class="verse" id="verseText"></div>
 
                 <!-- First letter mode section.
                          Hidden until first letter mode is selected. -->
                 <div id="lettersGame" class="isHidden">
+
+                    <!-- Reference area for first letter mode -->
+                    <div class="verse">
+                        <label>Reference</label>
+                        <div id="refLettersGame"></div>
+                    </div>
 
                     <!-- Title area for first letter mode.
                              Hidden if there is no title. -->
@@ -147,6 +143,14 @@
                         </div>
                     </div>
 
+                    <!-- Reference blank-filling section -->
+                    <div id="refDragSection">
+                        <label>Reference</label>
+                        <div class="verse" id="refBlankLine"></div>
+                        <div id="refWordBank" class="controls"></div>
+                        <hr class="sep">
+                    </div>
+
                     <!-- Title blank-filling section. Hidden if there is no title. -->
                     <div id="titleDragSection" class="isHidden">
 
@@ -183,6 +187,12 @@
 
                 <!-- Separator line -->
                 <hr class="sep">
+
+                <!-- Row for typing the reference from memory -->
+                <div class="row" id="refAnswerRow">
+                    <label>Type Reference from Memory</label>
+                    <input id="refAnswer" type="text" placeholder="Type reference here (e.g. John 3:16)">
+                </div>
 
                 <!-- Row for typing the title from memory. Hidden unless the title input is needed. -->
                 <div class="row isHidden" id="titleAnswerRow">

@@ -26,7 +26,6 @@ import {
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"
 
-// Canonical order of Bible books
 const BIBLE_BOOKS = [
   "Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy", "Joshua", "Judges", "Ruth",
   "1 Samuel", "2 Samuel", "1 Kings", "2 Kings", "1 Chronicles", "2 Chronicles", "Ezra",
@@ -72,22 +71,22 @@ async function ensureUserDoc(user) {
   const userRef = doc(db, "users", user.uid)
   const snap = await getDoc(userRef)
 
-  console.log("User logged in:", user.uid)
-
   if (!snap.exists()) {
-    console.log("Creating NEW Firestore user")
     await setDoc(userRef, {
       email: user.email || "",
       name: user.displayName || "",
       createdAt: serverTimestamp(),
       welcomeEmailSent: false
     })
-  } else {
-    console.log("User already exists, skip create")
   }
 }
 
 const DEFAULT_VERSES = []
+
+let refPuzzleHidden = []
+let refPuzzleSlots = []
+let refBankItems = []
+let selectedRefBankWord = ""
 
 let titlePuzzleHidden = []
 let titlePuzzleSlots = []
@@ -98,6 +97,7 @@ let verseBankItems = []
 let selectedTitleBankWord = ""
 let selectedVerseBankWord = ""
 
+let refWords = []
 let titleWords = []
 let verseWords = []
 
@@ -107,7 +107,6 @@ let hiddenIndexes = []
 
 let selectedVerseId = ""
 let currentMode = "type"
-
 let tapDifficulty = "easy"
 
 let collections = []
@@ -122,7 +121,7 @@ const btnLogout = document.getElementById("btnLogout")
 const authMsg = document.getElementById("authMsg")
 
 const newTitle = document.getElementById("newTitle")
-const practiceTitle = document.getElementById("practiceTitle")
+const practiceVersionLabel = document.getElementById("practiceVersionLabel")
 const gameMemoryTitle = document.getElementById("gameMemoryTitle")
 
 const pagePractice = document.getElementById("pagePractice")
@@ -147,6 +146,9 @@ const result = document.getElementById("result")
 const stats = document.getElementById("stats")
 const answer = document.getElementById("answer")
 const answerRow = document.getElementById("answerRow")
+
+const refAnswerRow = document.getElementById("refAnswerRow")
+const refAnswer = document.getElementById("refAnswer")
 
 const lettersGame = document.getElementById("lettersGame")
 const dragGame = document.getElementById("dragGame")
@@ -176,15 +178,19 @@ const settingsMsg = document.getElementById("settingsMsg")
 const btnDeleteAccount = document.getElementById("btnDeleteAccount")
 const newVersion = document.getElementById("newVersion")
 const btnBackToGame = document.getElementById("btnBackToGame")
-const practiceVerseTitle = document.getElementById("practiceVerseTitle")
 
 const titleAnswerRow = document.getElementById("titleAnswerRow")
 const titleAnswer = document.getElementById("titleAnswer")
+
+const refDragSection = document.getElementById("refDragSection")
+const refBlankLine = document.getElementById("refBlankLine")
+const refWordBank = document.getElementById("refWordBank")
 
 const titleDragSection = document.getElementById("titleDragSection")
 const titleBlankLine = document.getElementById("titleBlankLine")
 const titleWordBank = document.getElementById("titleWordBank")
 
+const refLettersGame = document.getElementById("refLettersGame")
 const titleLettersSection = document.getElementById("titleLettersSection")
 const titleLettersGame = document.getElementById("titleLettersGame")
 const verseLettersGame = document.getElementById("verseLettersGame")
@@ -218,7 +224,6 @@ const btnRenameGroupInline = document.getElementById("btnRenameGroupInline")
 const btnDeleteGroupInline = document.getElementById("btnDeleteGroupInline")
 
 const modalOverlay = document.getElementById("modalOverlay")
-
 const renameCollectionModal = document.getElementById("renameCollectionModal")
 const renameGroupModal = document.getElementById("renameGroupModal")
 const deleteCollectionModal = document.getElementById("deleteCollectionModal")
@@ -257,10 +262,8 @@ const sortSelect = document.getElementById("sortSelect")
 let currentUser = null
 
 async function loginWithGoogle() {
-  console.log("login button clicked")
   try {
     await signInWithPopup(auth, provider)
-    console.log("popup opened or login succeeded")
   } catch (error) {
     console.error("Google login error:", error)
     authMsg.textContent = "Login failed."
@@ -285,8 +288,6 @@ onAuthStateChanged(auth, async (user) => {
     btnLogout.classList.remove("isHidden")
 
     await ensureUserDoc(currentUser)
-    authMsg.textContent = "Signed in as " + (currentUser.displayName || currentUser.email || "User")
-
     await loadThemePreference()
     await loadCollectionsFromCloud()
     await loadGroupsFromCloud()
@@ -298,10 +299,9 @@ onAuthStateChanged(auth, async (user) => {
     btnLogout.classList.add("isHidden")
 
     applyTheme(getSavedTheme())
-    if (settingsMsg) settingsMsg.textContent = "Theme saved in browser."
-
     verses = []
     selectedVerseId = ""
+    refWords = []
     titleWords = []
     verseWords = []
     collections = []
@@ -310,15 +310,15 @@ onAuthStateChanged(auth, async (user) => {
     updateGroupState()
     renderGroupOptions()
 
-    answer.value = ""
+    if (refAnswer) refAnswer.value = ""
     if (titleAnswer) titleAnswer.value = ""
+    answer.value = ""
     result.textContent = ""
     result.className = "result"
 
     renderLibrary()
     setPracticeEnabled(false)
-    practiceVerseTitle.textContent = "No verses yet"
-    verseText.textContent = "Please log in to load your verses."
+    practiceVersionLabel.textContent = "No verses yet"
     setTypingEnabled(false)
   }
 })
@@ -335,7 +335,6 @@ async function loadVersesFromCloud() {
     const snapshot = await getDocs(versesRef)
 
     const cloudVerses = []
-
     snapshot.forEach((docSnap) => {
       const data = docSnap.data()
       cloudVerses.push({
@@ -358,8 +357,7 @@ async function loadVersesFromCloud() {
       setPracticeEnabled(true)
     } else {
       setPracticeEnabled(false)
-      practiceVerseTitle.textContent = "No verses yet"
-      verseText.textContent = "Go to Library to add one."
+      practiceVersionLabel.textContent = "No verses yet"
       setTypingEnabled(false)
     }
   } catch (error) {
@@ -369,9 +367,7 @@ async function loadVersesFromCloud() {
 }
 
 function refreshVerses() {
-  if (!Array.isArray(verses)) {
-    verses = []
-  }
+  if (!Array.isArray(verses)) verses = []
 }
 
 function normalize(text) {
@@ -385,10 +381,8 @@ function normalize(text) {
 function setTypingEnabled(enabled) {
   answer.disabled = !enabled
   answer.placeholder = enabled ? "Start typing here." : "Hide words first to type."
-
-  if (titleAnswer) {
-    titleAnswer.disabled = !enabled
-  }
+  if (titleAnswer) titleAnswer.disabled = !enabled
+  if (refAnswer) refAnswer.disabled = !enabled
 }
 
 function setPracticeEnabled(enabled) {
@@ -399,6 +393,8 @@ function setPracticeEnabled(enabled) {
 
   if (!enabled) {
     answer.value = ""
+    if (refAnswer) refAnswer.value = ""
+    if (titleAnswer) titleAnswer.value = ""
     result.textContent = ""
     result.className = "result"
   }
@@ -428,46 +424,32 @@ async function deleteCollectionDocsByPath(pathSegments) {
 
 async function deleteCurrentAccountAfterReauth() {
   const uid = currentUser.uid
-
   await deleteCollectionDocsByPath(["users", uid, "verses"])
   await deleteCollectionDocsByPath(["users", uid, "groups"])
   await deleteCollectionDocsByPath(["users", uid, "collections"])
-
   await deleteDoc(doc(db, "users", uid))
   await deleteUser(currentUser)
-
   if (settingsMsg) settingsMsg.textContent = "Account deleted."
 }
 
 async function deleteCurrentAccount() {
-  if (!currentUser) {
-    if (settingsMsg) settingsMsg.textContent = "Please log in first."
-    return
-  }
-
-  const firstConfirm = window.confirm("Delete your account and all your verses, groups, and collections?")
-  if (!firstConfirm) return
-
-  const secondConfirm = window.confirm("This cannot be undone. Are you sure?")
-  if (!secondConfirm) return
+  if (!currentUser) return
+  if (!window.confirm("Delete your account and all your data?")) return
+  if (!window.confirm("This cannot be undone. Are you sure?")) return
 
   try {
     if (settingsMsg) settingsMsg.textContent = "Deleting account..."
     await deleteCurrentAccountAfterReauth()
   } catch (error) {
-    console.error("Delete account failed:", error)
-
     if (error.code === "auth/requires-recent-login") {
       try {
         await reauthenticateWithPopup(currentUser, provider)
         await deleteCurrentAccountAfterReauth()
       } catch (reauthError) {
-        console.error("Reauthentication failed:", reauthError)
         if (settingsMsg) settingsMsg.textContent = "Reauthentication failed."
       }
       return
     }
-
     if (settingsMsg) settingsMsg.textContent = "Failed to delete account."
   }
 }
@@ -480,28 +462,13 @@ function applyTheme(theme) {
 }
 
 async function loadThemePreference() {
-  if (!currentUser) {
-    const localTheme = getSavedTheme()
-    applyTheme(localTheme)
-    if (settingsMsg) settingsMsg.textContent = "Theme saved in this browser."
-    return
-  }
-
   const localTheme = getSavedTheme()
   applyTheme(localTheme)
-  if (settingsMsg) settingsMsg.textContent = "Theme saved to your account."
 }
 
 function saveTheme(theme) {
   localStorage.setItem("memoryTheme", theme)
   applyTheme(theme)
-
-  if (!currentUser) {
-    if (settingsMsg) settingsMsg.textContent = "Theme saved in this browser."
-    return
-  }
-
-  if (settingsMsg) settingsMsg.textContent = "Theme saved to your account."
 }
 
 function initTheme() {
@@ -514,96 +481,25 @@ function loadVerse(id) {
 
   selectedVerseId = id
 
-  const fullRef = verse.version ? verse.ref + " (" + verse.version + ")" : verse.ref
-  practiceVerseTitle.textContent = fullRef
+  const fullRefText = verse.version ? verse.ref + " (" + verse.version + ")" : verse.ref
+  practiceVersionLabel.textContent = fullRefText
 
+  refWords = verse.ref ? verse.ref.split(/\s+/) : []
   titleWords = verse.title ? verse.title.split(/\s+/) : []
   verseWords = verse.text.split(/\s+/)
 
-  if (practiceTitle) {
-    practiceTitle.textContent = ""
-    practiceTitle.classList.add("isHidden")
-  }
+  if (refAnswerRow) refAnswerRow.classList.toggle("isHidden", refWords.length === 0)
+  if (refAnswer) refAnswer.value = ""
 
-  if (titleAnswerRow) {
-    titleAnswerRow.classList.toggle("isHidden", titleWords.length === 0)
-  }
-
-  if (titleAnswer) {
-    titleAnswer.value = ""
-  }
+  if (titleAnswerRow) titleAnswerRow.classList.toggle("isHidden", titleWords.length === 0)
+  if (titleAnswer) titleAnswer.value = ""
 
   words = [...verseWords]
   hiddenIndexes = []
 
-  renderVerse()
   answer.value = ""
   result.textContent = ""
   result.className = "result"
-}
-
-function renderVerse() {
-  verseText.innerHTML = ""
-
-  words.forEach((word, index) => {
-    const span = document.createElement("span")
-    span.className = "token"
-
-    if (hiddenIndexes.includes(index)) {
-      span.classList.add("hidden")
-      span.textContent = "__".repeat(Math.max(1, word.length))
-    } else {
-      span.textContent = word
-    }
-
-    verseText.appendChild(span)
-    verseText.appendChild(document.createTextNode(" "))
-  })
-}
-
-function revealOneWord() {
-  if (hiddenIndexes.length === 0) return
-  hiddenIndexes.pop()
-  renderVerse()
-}
-
-function hideAllWords() {
-  hiddenIndexes = words.map((word, index) => index)
-  renderVerse()
-  setTypingEnabled(true)
-  answer.focus()
-}
-
-function revealAllWords() {
-  hiddenIndexes = []
-  renderVerse()
-  answer.focus()
-}
-
-function toggleHideAll() {
-  if (hiddenIndexes.length === words.length) {
-    revealAllWords()
-    btnHideAll.textContent = "Hide All"
-  } else {
-    hideAllWords()
-    btnHideAll.textContent = "Reveal All"
-  }
-}
-
-function resetTypeMode() {
-  hiddenIndexes = words.map((word, index) => index)
-  renderVerse()
-  setTypingEnabled(true)
-  answer.value = ""
-  if (titleAnswer) titleAnswer.value = ""
-  result.textContent = ""
-  result.className = "result"
-
-  if (titleAnswerRow && !titleAnswerRow.classList.contains("isHidden")) {
-    titleAnswer.focus()
-  } else {
-    answer.focus()
-  }
 }
 
 function clearSlot(slots, bankItems, slotIndex) {
@@ -612,12 +508,8 @@ function clearSlot(slots, bankItems, slotIndex) {
     if (slot) slot.filled = ""
     return
   }
-
   const item = bankItems.find(bankItem => bankItem.id === slot.itemId)
-  if (item) {
-    item.placedIn = null
-  }
-
+  if (item) item.placedIn = null
   slot.filled = ""
   slot.itemId = ""
 }
@@ -625,13 +517,11 @@ function clearSlot(slots, bankItems, slotIndex) {
 function placeBankItemInSlot(slots, bankItems, slotIndex, itemId) {
   const slot = slots.find(s => s.index === slotIndex)
   const item = bankItems.find(bankItem => bankItem.id === itemId)
-
   if (!slot || !item) return
 
   if (slot.itemId && slot.itemId !== itemId) {
     clearSlot(slots, bankItems, slotIndex)
   }
-
   if (item.placedIn !== null && item.placedIn !== undefined) {
     clearSlot(slots, bankItems, item.placedIn)
   }
@@ -653,10 +543,14 @@ function makeBankItems(hiddenIndexes, sourceWords, prefix) {
 function buildDragPuzzle() {
   const ratio = getDifficultyRatio()
 
+  const refHideCount = refWords.length > 0 ? Math.max(1, Math.floor(refWords.length * ratio)) : 0
   const verseHideCount = Math.max(1, Math.floor(verseWords.length * ratio))
-  const titleHideCount = titleWords.length > 0
-    ? Math.max(1, Math.floor(titleWords.length * ratio))
-    : 0
+  const titleHideCount = titleWords.length > 0 ? Math.max(1, Math.floor(titleWords.length * ratio)) : 0
+
+  refPuzzleHidden = []
+  refPuzzleSlots = []
+  refBankItems = []
+  selectedRefBankWord = ""
 
   titlePuzzleHidden = []
   titlePuzzleSlots = []
@@ -664,25 +558,25 @@ function buildDragPuzzle() {
   versePuzzleSlots = []
   titleBankItems = []
   verseBankItems = []
-
   selectedTitleBankWord = ""
   selectedVerseBankWord = ""
+
+  const refIndexes = refWords.map((word, index) => index)
+  while (refPuzzleHidden.length < refHideCount && refIndexes.length > 0) {
+    const randomPos = Math.floor(Math.random() * refIndexes.length)
+    refPuzzleHidden.push(refIndexes.splice(randomPos, 1)[0])
+  }
+  refPuzzleHidden.sort((a, b) => a - b)
+  refPuzzleSlots = refPuzzleHidden.map(index => ({ index, expected: refWords[index], filled: "", itemId: "" }))
+  refBankItems = makeBankItems(refPuzzleHidden, refWords, "ref")
 
   const titleIndexes = titleWords.map((word, index) => index)
   while (titlePuzzleHidden.length < titleHideCount && titleIndexes.length > 0) {
     const randomPos = Math.floor(Math.random() * titleIndexes.length)
     titlePuzzleHidden.push(titleIndexes.splice(randomPos, 1)[0])
   }
-
   titlePuzzleHidden.sort((a, b) => a - b)
-
-  titlePuzzleSlots = titlePuzzleHidden.map(index => ({
-    index,
-    expected: titleWords[index],
-    filled: "",
-    itemId: ""
-  }))
-
+  titlePuzzleSlots = titlePuzzleHidden.map(index => ({ index, expected: titleWords[index], filled: "", itemId: "" }))
   titleBankItems = makeBankItems(titlePuzzleHidden, titleWords, "title")
 
   const verseIndexes = verseWords.map((word, index) => index)
@@ -690,16 +584,8 @@ function buildDragPuzzle() {
     const randomPos = Math.floor(Math.random() * verseIndexes.length)
     versePuzzleHidden.push(verseIndexes.splice(randomPos, 1)[0])
   }
-
   versePuzzleHidden.sort((a, b) => a - b)
-
-  versePuzzleSlots = versePuzzleHidden.map(index => ({
-    index,
-    expected: verseWords[index],
-    filled: "",
-    itemId: ""
-  }))
-
+  versePuzzleSlots = versePuzzleHidden.map(index => ({ index, expected: verseWords[index], filled: "", itemId: "" }))
   verseBankItems = makeBankItems(versePuzzleHidden, verseWords, "verse")
 
   updateDifficultyButtons()
@@ -714,15 +600,77 @@ function getDifficultyRatio() {
 
 function updateDifficultyButtons() {
   if (!difficultyEasy || !difficultyMedium || !difficultyHard) return
-
   difficultyEasy.classList.toggle("active", tapDifficulty === "easy")
   difficultyMedium.classList.toggle("active", tapDifficulty === "medium")
   difficultyHard.classList.toggle("active", tapDifficulty === "hard")
 }
 
+function renderSegmentedWordBank(bankItems, selectedWordId, containerElem, onSelectCb) {
+  containerElem.innerHTML = ""
+  const availableItems = bankItems.filter(item => item.placedIn === null)
+  if (availableItems.length === 0) return
+
+  // Limit shown choices to maximum 4 random items to prevent long overwhelming lists!
+  const displayItems = [...availableItems].sort(() => Math.random() - 0.5).slice(0, 4)
+
+  displayItems.forEach(item => {
+    const pill = document.createElement("span")
+    pill.className = "pill"
+    pill.textContent = item.text
+    if (selectedWordId === item.id) pill.classList.add("active")
+
+    pill.addEventListener("click", () => {
+      onSelectCb(item.id)
+      renderDragPuzzle()
+    })
+    containerElem.appendChild(pill)
+  })
+}
+
 function renderDragPuzzle() {
-  blankLine.innerHTML = ""
-  wordBank.innerHTML = ""
+  if (refBlankLine) refBlankLine.innerHTML = ""
+  if (refWordBank) refWordBank.innerHTML = ""
+
+  if (refDragSection) {
+    refDragSection.classList.toggle("isHidden", refWords.length === 0)
+  }
+
+  if (refWords.length > 0 && refBlankLine && refWordBank) {
+    const refHiddenSet = new Set(refPuzzleHidden)
+    for (let i = 0; i < refWords.length; i++) {
+      if (refHiddenSet.has(i)) {
+        const blank = document.createElement("span")
+        const slot = refPuzzleSlots.find(s => s.index === i)
+        blank.textContent = slot && slot.filled ? slot.filled : "_____"
+        blank.className = slot && slot.filled ? "blank filled" : "blank"
+
+        blank.addEventListener("click", () => {
+          const currentSlot = refPuzzleSlots.find(s => s.index === i)
+          if (!currentSlot) return
+          if (selectedRefBankWord) {
+            placeBankItemInSlot(refPuzzleSlots, refBankItems, i, selectedRefBankWord)
+            selectedRefBankWord = ""
+            renderDragPuzzle()
+            return
+          }
+          if (currentSlot.filled) {
+            clearSlot(refPuzzleSlots, refBankItems, i)
+            renderDragPuzzle()
+          }
+        })
+        refBlankLine.appendChild(blank)
+      } else {
+        const span = document.createElement("span")
+        span.textContent = refWords[i]
+        refBlankLine.appendChild(span)
+      }
+      refBlankLine.appendChild(document.createTextNode(" "))
+    }
+
+    renderSegmentedWordBank(refBankItems, selectedRefBankWord, refWordBank, (id) => {
+      selectedRefBankWord = selectedRefBankWord === id ? "" : id
+    })
+  }
 
   if (titleDragSection) {
     titleDragSection.classList.toggle("isHidden", titleWords.length === 0)
@@ -733,145 +681,98 @@ function renderDragPuzzle() {
 
   if (titleWords.length > 0 && titleBlankLine && titleWordBank) {
     const titleHiddenSet = new Set(titlePuzzleHidden)
-
     for (let i = 0; i < titleWords.length; i++) {
       if (titleHiddenSet.has(i)) {
         const blank = document.createElement("span")
         const slot = titlePuzzleSlots.find(s => s.index === i)
-
         blank.textContent = slot && slot.filled ? slot.filled : "_____"
         blank.className = slot && slot.filled ? "blank filled" : "blank"
 
         blank.addEventListener("click", () => {
           const currentSlot = titlePuzzleSlots.find(s => s.index === i)
           if (!currentSlot) return
-
           if (selectedTitleBankWord) {
             placeBankItemInSlot(titlePuzzleSlots, titleBankItems, i, selectedTitleBankWord)
             selectedTitleBankWord = ""
             renderDragPuzzle()
             return
           }
-
           if (currentSlot.filled) {
             clearSlot(titlePuzzleSlots, titleBankItems, i)
             renderDragPuzzle()
           }
         })
-
         titleBlankLine.appendChild(blank)
       } else {
         const span = document.createElement("span")
         span.textContent = titleWords[i]
         titleBlankLine.appendChild(span)
       }
-
       titleBlankLine.appendChild(document.createTextNode(" "))
     }
 
-    const titleAvailableBankItems = titleBankItems
-      .filter(item => item.placedIn === null)
-      .sort(() => Math.random() - 0.5)
-
-    titleAvailableBankItems.forEach(item => {
-      const pill = document.createElement("span")
-      pill.className = "pill"
-      pill.textContent = item.text
-      if (selectedTitleBankWord === item.id) {
-        pill.classList.add("active")
-      }
-
-      pill.addEventListener("click", () => {
-        selectedTitleBankWord = item.id
-        titleWordBank.querySelectorAll(".pill").forEach(p => p.classList.remove("active"))
-        pill.classList.add("active")
-      })
-
-      titleWordBank.appendChild(pill)
+    renderSegmentedWordBank(titleBankItems, selectedTitleBankWord, titleWordBank, (id) => {
+      selectedTitleBankWord = selectedTitleBankWord === id ? "" : id
     })
   }
 
-  const verseHiddenSet = new Set(versePuzzleHidden)
+  if (blankLine) blankLine.innerHTML = ""
+  if (wordBank) wordBank.innerHTML = ""
 
+  const verseHiddenSet = new Set(versePuzzleHidden)
   for (let i = 0; i < verseWords.length; i++) {
     if (verseHiddenSet.has(i)) {
       const blank = document.createElement("span")
       const slot = versePuzzleSlots.find(s => s.index === i)
-
       blank.textContent = slot && slot.filled ? slot.filled : "_____"
       blank.className = slot && slot.filled ? "blank filled" : "blank"
 
       blank.addEventListener("click", () => {
         const currentSlot = versePuzzleSlots.find(s => s.index === i)
         if (!currentSlot) return
-
         if (selectedVerseBankWord) {
           placeBankItemInSlot(versePuzzleSlots, verseBankItems, i, selectedVerseBankWord)
           selectedVerseBankWord = ""
           renderDragPuzzle()
           return
         }
-
         if (currentSlot.filled) {
           clearSlot(versePuzzleSlots, verseBankItems, i)
           renderDragPuzzle()
         }
       })
-
       blankLine.appendChild(blank)
     } else {
       const span = document.createElement("span")
       span.textContent = verseWords[i]
       blankLine.appendChild(span)
     }
-
     blankLine.appendChild(document.createTextNode(" "))
   }
 
-  const verseAvailableBankItems = verseBankItems
-    .filter(item => item.placedIn === null)
-    .sort(() => Math.random() - 0.5)
-
-  verseAvailableBankItems.forEach(item => {
-    const pill = document.createElement("span")
-    pill.className = "pill"
-    pill.textContent = item.text
-    if (selectedVerseBankWord === item.id) {
-      pill.classList.add("active")
-    }
-
-    pill.addEventListener("click", () => {
-      selectedVerseBankWord = item.id
-      wordBank.querySelectorAll(".pill").forEach(p => p.classList.remove("active"))
-      pill.classList.add("active")
-    })
-
-    wordBank.appendChild(pill)
+  renderSegmentedWordBank(verseBankItems, selectedVerseBankWord, wordBank, (id) => {
+    selectedVerseBankWord = selectedVerseBankWord === id ? "" : id
   })
 }
 
 function renderLettersGame() {
-  if (titleLettersSection) {
-    titleLettersSection.classList.toggle("isHidden", titleWords.length === 0)
-  }
+  if (refLettersGame) refLettersGame.innerHTML = ""
+  if (titleLettersSection) titleLettersSection.classList.toggle("isHidden", titleWords.length === 0)
+  if (titleLettersGame) titleLettersGame.innerHTML = ""
+  if (verseLettersGame) verseLettersGame.innerHTML = ""
 
-  if (titleLettersGame) {
-    titleLettersGame.innerHTML = ""
+  if (refWords.length > 0 && refLettersGame) {
+    renderLetterSection(refWords, refLettersGame, "ref")
   }
-
-  if (verseLettersGame) {
-    verseLettersGame.innerHTML = ""
-  }
-
   if (titleWords.length > 0 && titleLettersGame) {
     renderLetterSection(titleWords, titleLettersGame, "title")
   }
-
   if (verseLettersGame) {
     renderLetterSection(verseWords, verseLettersGame, "verse")
   }
 
   const firstBox =
+    document.querySelector('#refLettersGame .letterBox:not(.isHidden)') ||
     document.querySelector('#titleLettersGame .letterBox:not(.isHidden)') ||
     document.querySelector('#verseLettersGame .letterBox:not(.isHidden)')
 
@@ -919,9 +820,7 @@ function renderLetterSection(sourceWords, container, sectionType) {
     input.addEventListener("input", () => {
       const expected = cleanWord.charAt(0).toLowerCase()
       const user = input.value.trim().toLowerCase()
-
       input.classList.remove("wrong")
-
       if (!user) return
 
       if (user === expected) {
@@ -956,6 +855,7 @@ function renderLetterSection(sourceWords, container, sectionType) {
 
 function moveToNextLetterBox() {
   const next =
+    document.querySelector('#refLettersGame .letterBox:not(.isHidden)') ||
     document.querySelector('#titleLettersGame .letterBox:not(.isHidden)') ||
     document.querySelector('#verseLettersGame .letterBox:not(.isHidden)')
 
@@ -963,275 +863,232 @@ function moveToNextLetterBox() {
 }
 
 function checkTypeMode() {
+  const expectedRefWords = refWords.map(word => normalize(word)).filter(Boolean)
   const expectedTitleWords = titleWords.map(word => normalize(word)).filter(Boolean)
   const expectedVerseWords = verseWords.map(word => normalize(word.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, ""))).filter(Boolean)
 
+  const userRefWords = normalize(refAnswer ? refAnswer.value : "").split(" ").filter(Boolean)
   const userTitleWords = normalize(titleAnswer ? titleAnswer.value : "").split(" ").filter(Boolean)
   const userVerseWords = normalize(answer.value).split(" ").filter(Boolean)
 
+  let correctRef = 0
   let correctTitle = 0
   let correctVerse = 0
 
+  for (let i = 0; i < expectedRefWords.length; i++) {
+    if ((userRefWords[i] || "") === expectedRefWords[i]) correctRef += 1
+  }
   for (let i = 0; i < expectedTitleWords.length; i++) {
-    if ((userTitleWords[i] || "") === expectedTitleWords[i]) {
-      correctTitle += 1
-    }
+    if ((userTitleWords[i] || "") === expectedTitleWords[i]) correctTitle += 1
   }
-
   for (let i = 0; i < expectedVerseWords.length; i++) {
-    if ((userVerseWords[i] || "") === expectedVerseWords[i]) {
-      correctVerse += 1
-    }
+    if ((userVerseWords[i] || "") === expectedVerseWords[i]) correctVerse += 1
   }
 
-  const total = expectedTitleWords.length + expectedVerseWords.length
-  const correct = correctTitle + correctVerse
+  const total = expectedRefWords.length + expectedTitleWords.length + expectedVerseWords.length
+  const correct = correctRef + correctTitle + correctVerse
   const percent = total === 0 ? 0 : Math.round((correct / total) * 100)
 
-  if (expectedTitleWords.length > 0) {
-    result.textContent =
-      "Title: " + correctTitle + "/" + expectedTitleWords.length +
-      ". Verse: " + correctVerse + "/" + expectedVerseWords.length +
-      ". Total: " + correct + "/" + total + ". " + percent + "%."
-  } else {
-    result.textContent =
-      "Verse: " + correctVerse + "/" + expectedVerseWords.length +
-      ". Total: " + correct + "/" + total + ". " + percent + "%."
-  }
+  result.textContent =
+    (expectedRefWords.length > 0 ? "Ref: " + correctRef + "/" + expectedRefWords.length + ". " : "") +
+    (expectedTitleWords.length > 0 ? "Title: " + correctTitle + "/" + expectedTitleWords.length + ". " : "") +
+    "Verse: " + correctVerse + "/" + expectedVerseWords.length +
+    ". Total: " + correct + "/" + total + ". " + percent + "%."
 
   result.className = percent === 100 ? "result good" : "result bad"
-
-  if (percent === 100) {
-    saveScore()
-  }
+  if (percent === 100) saveScore()
 }
 
 function checkDragMode() {
-  let titleCorrect = 0
-  let titleFilled = 0
-  let titleTotal = titlePuzzleSlots.length
+  let refCorrect = 0, refTotal = refPuzzleSlots.length
+  refPuzzleSlots.forEach(slot => {
+    if (normalize(slot.filled || "") === normalize(slot.expected || "")) refCorrect += 1
+  })
 
+  let titleCorrect = 0, titleTotal = titlePuzzleSlots.length
   titlePuzzleSlots.forEach(slot => {
-    if (slot.filled && slot.filled.trim() !== "") titleFilled += 1
     if (normalize(slot.filled || "") === normalize(slot.expected || "")) titleCorrect += 1
   })
 
-  let verseCorrect = 0
-  let verseFilled = 0
-  let verseTotal = versePuzzleSlots.length
-
+  let verseCorrect = 0, verseTotal = versePuzzleSlots.length
   versePuzzleSlots.forEach(slot => {
-    if (slot.filled && slot.filled.trim() !== "") verseFilled += 1
     if (normalize(slot.filled || "") === normalize(slot.expected || "")) verseCorrect += 1
   })
 
-  const total = titleTotal + verseTotal
-  const correct = titleCorrect + verseCorrect
+  const total = refTotal + titleTotal + verseTotal
+  const correct = refCorrect + titleCorrect + verseCorrect
   const percent = total === 0 ? 0 : Math.round((correct / total) * 100)
 
-  if (titleTotal > 0) {
-    result.textContent =
-      "Title: " + titleCorrect + "/" + titleTotal +
-      ". Verse: " + verseCorrect + "/" + verseTotal +
-      ". Total: " + correct + "/" + total + ". " + percent + "%."
-  } else {
-    result.textContent =
-      "Verse: " + verseCorrect + "/" + verseTotal +
-      ". Total: " + correct + "/" + total + ". " + percent + "%."
-  }
+  result.textContent =
+    (refTotal > 0 ? "Ref: " + refCorrect + "/" + refTotal + ". " : "") +
+    (titleTotal > 0 ? "Title: " + titleCorrect + "/" + titleTotal + ". " : "") +
+    "Verse: " + verseCorrect + "/" + verseTotal +
+    ". Total: " + correct + "/" + total + ". " + percent + "%."
 
   result.className = percent === 100 ? "result good" : "result bad"
-
-  if (percent === 100) {
-    saveScore()
-  }
+  if (percent === 100) saveScore()
 }
 
 function checkLettersGame() {
-  let titleCorrect = 0
-  let titleTotal = 0
-  let verseCorrect = 0
-  let verseTotal = 0
+  let refCorrect = 0, refTotal = 0
+  let titleCorrect = 0, titleTotal = 0
+  let verseCorrect = 0, verseTotal = 0
 
-  if (titleLettersGame) {
-    const titleWrappers = titleLettersGame.querySelectorAll(".letterWord")
-
-    titleWrappers.forEach(wrapper => {
+  if (refLettersGame) {
+    refLettersGame.querySelectorAll(".letterWord").forEach(wrapper => {
       const input = wrapper.querySelector(".letterBox")
       const fullWord = wrapper.querySelector(".fullWord")
-
       if (!input || !fullWord) return
-
-      titleTotal += 1
-
-      if (!fullWord.classList.contains("isHidden")) {
-        titleCorrect += 1
-        return
+      refTotal += 1
+      if (!fullWord.classList.contains("isHidden")) { refCorrect += 1; return; }
+      const index = Number(input.dataset.index)
+      const cleanWord = refWords[index].replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, "")
+      if (input.value.trim().toLowerCase() === cleanWord.charAt(0).toLowerCase()) {
+        refCorrect += 1
+        input.classList.add("isHidden")
+        fullWord.classList.remove("isHidden")
+      } else if (input.value.trim()) {
+        input.classList.add("wrong")
       }
+    })
+  }
 
+  if (titleLettersGame) {
+    titleLettersGame.querySelectorAll(".letterWord").forEach(wrapper => {
+      const input = wrapper.querySelector(".letterBox")
+      const fullWord = wrapper.querySelector(".fullWord")
+      if (!input || !fullWord) return
+      titleTotal += 1
+      if (!fullWord.classList.contains("isHidden")) { titleCorrect += 1; return; }
       const index = Number(input.dataset.index)
       const cleanWord = titleWords[index].replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, "")
-      const expected = cleanWord.charAt(0).toLowerCase()
-      const user = input.value.trim().toLowerCase()
-
-      if (user === expected) {
+      if (input.value.trim().toLowerCase() === cleanWord.charAt(0).toLowerCase()) {
         titleCorrect += 1
         input.classList.add("isHidden")
         fullWord.classList.remove("isHidden")
-        input.classList.remove("wrong")
-      } else if (user) {
+      } else if (input.value.trim()) {
         input.classList.add("wrong")
       }
     })
   }
 
   if (verseLettersGame) {
-    const verseWrappers = verseLettersGame.querySelectorAll(".letterWord")
-
-    verseWrappers.forEach(wrapper => {
+    verseLettersGame.querySelectorAll(".letterWord").forEach(wrapper => {
       const input = wrapper.querySelector(".letterBox")
       const fullWord = wrapper.querySelector(".fullWord")
-
       if (!input || !fullWord) return
-
       verseTotal += 1
-
-      if (!fullWord.classList.contains("isHidden")) {
-        verseCorrect += 1
-        return
-      }
-
+      if (!fullWord.classList.contains("isHidden")) { verseCorrect += 1; return; }
       const index = Number(input.dataset.index)
       const cleanWord = verseWords[index].replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, "")
-      const expected = cleanWord.charAt(0).toLowerCase()
-      const user = input.value.trim().toLowerCase()
-
-      if (user === expected) {
+      if (input.value.trim().toLowerCase() === cleanWord.charAt(0).toLowerCase()) {
         verseCorrect += 1
         input.classList.add("isHidden")
         fullWord.classList.remove("isHidden")
-        input.classList.remove("wrong")
-      } else if (user) {
+      } else if (input.value.trim()) {
         input.classList.add("wrong")
       }
     })
   }
 
-  const total = titleTotal + verseTotal
-  const correct = titleCorrect + verseCorrect
+  const total = refTotal + titleTotal + verseTotal
+  const correct = refCorrect + titleCorrect + verseCorrect
   const percent = total === 0 ? 0 : Math.round((correct / total) * 100)
 
-  if (titleTotal > 0) {
-    result.textContent =
-      "Title: " + titleCorrect + "/" + titleTotal +
-      ". Verse: " + verseCorrect + "/" + verseTotal +
-      ". Total: " + correct + "/" + total + ". " + percent + "%."
-  } else {
-    result.textContent =
-      "Verse: " + verseCorrect + "/" + verseTotal +
-      ". Total: " + correct + "/" + total + ". " + percent + "%."
-  }
+  result.textContent =
+    (refTotal > 0 ? "Ref: " + refCorrect + "/" + refTotal + ". " : "") +
+    (titleTotal > 0 ? "Title: " + titleCorrect + "/" + titleTotal + ". " : "") +
+    "Verse: " + verseCorrect + "/" + verseTotal +
+    ". Total: " + correct + "/" + total + ". " + percent + "%."
 
   result.className = percent === 100 ? "result good" : "result bad"
-
-  if (percent === 100) {
-    saveScore()
-  }
+  if (percent === 100) saveScore()
 }
 
 function checkCurrentMode() {
-  if (currentMode === "drag") {
-    checkDragMode()
-    return
-  }
-
-  if (currentMode === "letters") {
-    checkLettersGame()
-    return
-  }
-
+  if (currentMode === "drag") { checkDragMode(); return; }
+  if (currentMode === "letters") { checkLettersGame(); return; }
   checkTypeMode()
-}
-
-function revealOneBlank() {
-  const emptyTitle = titlePuzzleSlots.filter(slot => !slot.filled)
-  const emptyVerse = versePuzzleSlots.filter(slot => !slot.filled)
-
-  if (emptyTitle.length > 0) {
-    const pick = emptyTitle[Math.floor(Math.random() * emptyTitle.length)]
-    const item = titleBankItems.find(bankItem => bankItem.homeIndex === pick.index && bankItem.placedIn === null)
-    if (item) {
-      placeBankItemInSlot(titlePuzzleSlots, titleBankItems, pick.index, item.id)
-    }
-    selectedTitleBankWord = ""
-    renderDragPuzzle()
-    return
-  }
-
-  if (emptyVerse.length > 0) {
-    const pick = emptyVerse[Math.floor(Math.random() * emptyVerse.length)]
-    const item = verseBankItems.find(bankItem => bankItem.homeIndex === pick.index && bankItem.placedIn === null)
-    if (item) {
-      placeBankItemInSlot(versePuzzleSlots, verseBankItems, pick.index, item.id)
-    }
-    selectedVerseBankWord = ""
-    renderDragPuzzle()
-  }
-}
-
-function revealOneLetterBox() {
-  const titleUnfinished = titleLettersGame
-    ? Array.from(titleLettersGame.querySelectorAll(".letterWord")).filter(wrapper => {
-      const input = wrapper.querySelector(".letterBox")
-      const fullWord = wrapper.querySelector(".fullWord")
-      return input && fullWord && fullWord.classList.contains("isHidden")
-    })
-    : []
-
-  const verseUnfinished = verseLettersGame
-    ? Array.from(verseLettersGame.querySelectorAll(".letterWord")).filter(wrapper => {
-      const input = wrapper.querySelector(".letterBox")
-      const fullWord = wrapper.querySelector(".fullWord")
-      return input && fullWord && fullWord.classList.contains("isHidden")
-    })
-    : []
-
-  if (titleUnfinished.length > 0) {
-    const pick = titleUnfinished[Math.floor(Math.random() * titleUnfinished.length)]
-    const input = pick.querySelector(".letterBox")
-    const fullWord = pick.querySelector(".fullWord")
-
-    input.classList.add("isHidden")
-    fullWord.classList.remove("isHidden")
-    input.classList.remove("wrong")
-    moveToNextLetterBox()
-    return
-  }
-
-  if (verseUnfinished.length > 0) {
-    const pick = verseUnfinished[Math.floor(Math.random() * verseUnfinished.length)]
-    const input = pick.querySelector(".letterBox")
-    const fullWord = pick.querySelector(".fullWord")
-
-    input.classList.add("isHidden")
-    fullWord.classList.remove("isHidden")
-    input.classList.remove("wrong")
-    moveToNextLetterBox()
-  }
 }
 
 function giveHint() {
   if (currentMode === "drag") {
-    revealOneBlank()
+    const emptyRef = refPuzzleSlots.filter(s => !s.filled)
+    const emptyTitle = titlePuzzleSlots.filter(s => !s.filled)
+    const emptyVerse = versePuzzleSlots.filter(s => !s.filled)
+
+    if (emptyRef.length > 0) {
+      const pick = emptyRef[Math.floor(Math.random() * emptyRef.length)]
+      const item = refBankItems.find(i => i.homeIndex === pick.index && i.placedIn === null)
+      if (item) placeBankItemInSlot(refPuzzleSlots, refBankItems, pick.index, item.id)
+    } else if (emptyTitle.length > 0) {
+      const pick = emptyTitle[Math.floor(Math.random() * emptyTitle.length)]
+      const item = titleBankItems.find(i => i.homeIndex === pick.index && i.placedIn === null)
+      if (item) placeBankItemInSlot(titlePuzzleSlots, titleBankItems, pick.index, item.id)
+    } else if (emptyVerse.length > 0) {
+      const pick = emptyVerse[Math.floor(Math.random() * emptyVerse.length)]
+      const item = verseBankItems.find(i => i.homeIndex === pick.index && i.placedIn === null)
+      if (item) placeBankItemInSlot(versePuzzleSlots, verseBankItems, pick.index, item.id)
+    }
+    renderDragPuzzle()
     return
   }
-
   if (currentMode === "letters") {
-    revealOneLetterBox()
+    const nextUnfinished =
+      document.querySelector('#refLettersGame .letterWord .fullWord.isHidden') ||
+      document.querySelector('#titleLettersGame .letterWord .fullWord.isHidden') ||
+      document.querySelector('#verseLettersGame .letterWord .fullWord.isHidden')
+    if (nextUnfinished) {
+      const wrapper = nextUnfinished.closest(".letterWord")
+      wrapper.querySelector(".letterBox").classList.add("isHidden")
+      wrapper.querySelector(".fullWord").classList.remove("isHidden")
+      moveToNextLetterBox()
+    }
     return
   }
-
   revealOneWord()
+}
+
+function revealOneWord() {
+  if (hiddenIndexes.length === 0) return
+  hiddenIndexes.pop()
+  renderVerse()
+}
+
+function hideAllWords() {
+  hiddenIndexes = words.map((word, index) => index)
+  renderVerse()
+  setTypingEnabled(true)
+  answer.focus()
+}
+
+function revealAllWords() {
+  hiddenIndexes = []
+  renderVerse()
+  answer.focus()
+}
+
+function toggleHideAll() {
+  if (hiddenIndexes.length === words.length) {
+    revealAllWords()
+    btnHideAll.textContent = "Hide All"
+  } else {
+    hideAllWords()
+    btnHideAll.textContent = "Reveal All"
+  }
+}
+
+function resetTypeMode() {
+  hiddenIndexes = words.map((word, index) => index)
+  renderVerse()
+  setTypingEnabled(true)
+  if (refAnswer) refAnswer.value = ""
+  if (titleAnswer) titleAnswer.value = ""
+  answer.value = ""
+  result.textContent = ""
+  result.className = "result"
+  if (refAnswerRow && !refAnswerRow.classList.contains("isHidden")) refAnswer.focus()
+  else answer.focus()
 }
 
 function resetCurrentGame() {
@@ -1241,14 +1098,12 @@ function resetCurrentGame() {
     result.className = "result"
     return
   }
-
   if (currentMode === "letters") {
     renderLettersGame()
     result.textContent = ""
     result.className = "result"
     return
   }
-
   resetTypeMode()
 }
 
@@ -1259,13 +1114,11 @@ function updatePracticeUI() {
   verseText.classList.toggle("isHidden", isDrag || isLetters)
   dragGame.classList.toggle("isHidden", !isDrag)
   lettersGame.classList.toggle("isHidden", !isLetters)
-
   btnHideAll.classList.toggle("isHidden", isDrag || isLetters)
   answerRow.classList.toggle("isHidden", isDrag || isLetters)
 
-  if (titleAnswerRow) {
-    titleAnswerRow.classList.toggle("isHidden", isDrag || isLetters || titleWords.length === 0)
-  }
+  if (refAnswerRow) refAnswerRow.classList.toggle("isHidden", isDrag || isLetters || refWords.length === 0)
+  if (titleAnswerRow) titleAnswerRow.classList.toggle("isHidden", isDrag || isLetters || titleWords.length === 0)
 }
 
 function applyModeUI() {
@@ -1278,13 +1131,11 @@ function applyModeUI() {
     resetTypeMode()
     return
   }
-
   if (currentMode === "drag") {
     setTypingEnabled(false)
     buildDragPuzzle()
     return
   }
-
   if (currentMode === "letters") {
     setTypingEnabled(false)
     renderLettersGame()
@@ -1309,19 +1160,13 @@ function showPage(name) {
     setPracticeEnabled(verses.length > 0)
     return
   }
-
   if (name === "library") {
     pageLibrary.classList.remove("isHidden")
     tabLibrary.classList.add("active")
     renderLibrary()
-
-    setTimeout(() => {
-      window.scrollTo(0, libraryScrollY)
-    }, 0)
-
+    setTimeout(() => { window.scrollTo(0, libraryScrollY) }, 0)
     return
   }
-
   if (name === "addCollection") {
     pageAddCollection.classList.remove("isHidden")
     newCollectionName.value = ""
@@ -1329,7 +1174,6 @@ function showPage(name) {
     newCollectionName.focus()
     return
   }
-
   if (name === "addGroup") {
     pageAddGroup.classList.remove("isHidden")
     newGroupName.value = ""
@@ -1337,7 +1181,6 @@ function showPage(name) {
     newGroupName.focus()
     return
   }
-
   if (name === "importCsv") {
     pageImportCsv.classList.remove("isHidden")
     renderImportCollectionOptions()
@@ -1346,12 +1189,10 @@ function showPage(name) {
     csvFileInput.value = ""
     return
   }
-
   if (name === "game") {
     pageGame.classList.remove("isHidden")
     return
   }
-
   if (name === "settings") {
     pageSettings.classList.remove("isHidden")
     tabSettings.classList.add("active")
@@ -1385,9 +1226,7 @@ function startSelectedGame(mode) {
 
 function renderCollectionFilters() {
   if (!collectionFilters) return
-
   collectionFilters.innerHTML = ""
-
   const collectionNames = ["None", ...collections.map(c => c.name).filter(n => n !== "None")]
   const frag = document.createDocumentFragment()
 
@@ -1397,43 +1236,33 @@ function renderCollectionFilters() {
     btn.className = name === selectedCollectionFilter ? "tab active" : "tab"
     btn.textContent = name
     btn.dataset.collection = name
-    btn.style.touchAction = "manipulation"
-    btn.style.userSelect = "none"
-
     frag.appendChild(btn)
   })
-
   collectionFilters.appendChild(frag)
 }
 
 function renderGroupFilters() {
   if (!groupFilters) return
-
   groupFilters.innerHTML = ""
-
   if (!selectedCollectionFilter || selectedCollectionFilter === "None") return
 
   const availableGroups = groups.filter(g => g.collection === selectedCollectionFilter)
-
   availableGroups.forEach(item => {
     const btn = document.createElement("button")
     btn.type = "button"
     btn.className = selectedGroupFilter === item.name ? "tab active" : "tab"
     btn.textContent = item.name
     btn.dataset.group = item.name
-
     groupFilters.appendChild(btn)
   })
 }
 
 function renderLibrary() {
   if (window._libraryRenderPending) return
-
   window._libraryRenderPending = true
 
   requestAnimationFrame(() => {
     window._libraryRenderPending = false
-
     try {
       _renderLibraryNow()
     } catch (e) {
@@ -1447,21 +1276,14 @@ function _renderLibraryNow() {
 
   renderCollectionFilters()
   renderGroupFilters()
-
   libraryGrid.innerHTML = ""
 
   let filteredVerses = verses.slice()
-
   if (selectedCollectionFilter) {
-    filteredVerses = filteredVerses.filter(
-      verse => (verse.collection || "None") === selectedCollectionFilter
-    )
+    filteredVerses = filteredVerses.filter(v => (v.collection || "None") === selectedCollectionFilter)
   }
-
   if (selectedGroupFilter) {
-    filteredVerses = filteredVerses.filter(
-      verse => verse.group === selectedGroupFilter
-    )
+    filteredVerses = filteredVerses.filter(v => v.group === selectedGroupFilter)
   }
 
   if (selectedSortMode === "titleAsc") {
@@ -1490,23 +1312,19 @@ function _renderLibraryNow() {
 
     if (selectedSortMode === "custom") {
       row.draggable = true
-
       row.addEventListener("dragstart", (e) => {
         draggedVerseId = verse.id
         row.classList.add("dragging")
         e.dataTransfer.effectAllowed = "move"
       })
-
       row.addEventListener("dragend", () => {
         row.classList.remove("dragging")
         draggedVerseId = null
       })
-
       row.addEventListener("dragover", (e) => {
         e.preventDefault()
         e.dataTransfer.dropEffect = "move"
       })
-
       row.addEventListener("drop", async (e) => {
         e.preventDefault()
         if (!draggedVerseId || draggedVerseId === verse.id) return
@@ -1517,9 +1335,7 @@ function _renderLibraryNow() {
         if (fromIndex !== -1 && toIndex !== -1) {
           const [movedVerse] = verses.splice(fromIndex, 1)
           verses.splice(toIndex, 0, movedVerse)
-
           verses.forEach((v, idx) => { v.order = idx })
-
           renderLibrary()
           await saveVersesOrderToCloud()
         }
@@ -1530,7 +1346,6 @@ function _renderLibraryNow() {
     meta.className = "meta"
 
     const title = document.createElement("div")
-
     if (selectedSortMode === "custom") {
       const handle = document.createElement("span")
       handle.className = "dragHandle"
@@ -1538,8 +1353,7 @@ function _renderLibraryNow() {
       title.appendChild(handle)
     }
 
-    const titleText = document.createTextNode(verse.title || verse.ref || "Untitled")
-    title.appendChild(titleText)
+    title.appendChild(document.createTextNode(verse.title || verse.ref || "Untitled"))
 
     const small = document.createElement("small")
     small.textContent =
@@ -1556,24 +1370,18 @@ function _renderLibraryNow() {
     const playBtn = document.createElement("button")
     playBtn.type = "button"
     playBtn.textContent = "Play 📖"
-    playBtn.addEventListener("click", () => {
-      openGamePicker(verse.id)
-    })
+    playBtn.addEventListener("click", () => openGamePicker(verse.id))
 
     const moveBtn = document.createElement("button")
     moveBtn.type = "button"
     moveBtn.textContent = "Move 📁"
-    moveBtn.addEventListener("click", () => {
-      openMoveVerseModal(verse)
-    })
+    moveBtn.addEventListener("click", () => openMoveVerseModal(verse))
 
     const deleteBtn = document.createElement("button")
     deleteBtn.type = "button"
     deleteBtn.className = "danger"
     deleteBtn.textContent = "Delete 🗑️"
-    deleteBtn.addEventListener("click", () => {
-      confirmDelete(verse.id, row)
-    })
+    deleteBtn.addEventListener("click", () => confirmDelete(verse.id, row))
 
     actions.appendChild(playBtn)
     actions.appendChild(moveBtn)
@@ -1581,7 +1389,6 @@ function _renderLibraryNow() {
 
     row.appendChild(meta)
     row.appendChild(actions)
-
     libraryGrid.appendChild(row)
   })
 }
@@ -1602,36 +1409,21 @@ async function saveVersesOrderToCloud() {
 
 function confirmDelete(id, row) {
   row.innerHTML = ""
-
   const meta = document.createElement("div")
   meta.className = "meta"
-
-  const title = document.createElement("div")
-  title.textContent = "Delete this verse?"
-
-  const small = document.createElement("small")
-  small.textContent = "This removes it from your cloud only."
-
-  meta.appendChild(title)
-  meta.appendChild(small)
+  meta.appendChild(document.createElement("div")).textContent = "Delete this verse?"
 
   const yes = document.createElement("button")
   yes.type = "button"
   yes.className = "danger"
   yes.textContent = "Delete"
-  yes.addEventListener("click", (event) => {
-    event.stopPropagation()
-    deleteCustomVerse(id)
-  })
+  yes.addEventListener("click", (e) => { e.stopPropagation(); deleteCustomVerse(id); })
 
   const no = document.createElement("button")
   no.type = "button"
   no.className = "ghost"
   no.textContent = "Cancel"
-  no.addEventListener("click", (event) => {
-    event.stopPropagation()
-    showPage("library")
-  })
+  no.addEventListener("click", (e) => { e.stopPropagation(); showPage("library"); })
 
   const actions = document.createElement("div")
   actions.className = "controls"
@@ -1650,24 +1442,13 @@ async function saveNewVerse() {
   const version = newVersion.value.trim()
   const text = newText.value.trim()
 
-  if (!currentUser) {
-    manageMsg.textContent = "Please log in first."
-    return
-  }
-
-  if (!ref || !text) {
-    manageMsg.textContent = "Please fill in reference and verse text."
-    return
-  }
+  if (!currentUser) { manageMsg.textContent = "Please log in first."; return; }
+  if (!ref || !text) { manageMsg.textContent = "Please fill in reference and verse text."; return; }
 
   try {
     const versesRef = collection(db, "users", currentUser.uid, "verses")
-
     await addDoc(versesRef, {
-      title,
-      ref,
-      version,
-      text,
+      title, ref, version, text,
       collection: collectionValue,
       group: groupValue,
       order: verses.length,
@@ -1683,32 +1464,13 @@ async function saveNewVerse() {
     collectionSelect.value = ""
     groupSelect.value = ""
     updateGroupState()
-    pasteBox.focus()
-
     await loadVersesFromCloud()
   } catch (error) {
-    console.error("Save verse failed:", error)
     manageMsg.textContent = "Failed to save verse."
   }
 }
 
 function clearVerseForm() {
-  const hasContent =
-    pasteBox.value.trim() ||
-    newTitle.value.trim() ||
-    newRef.value.trim() ||
-    newVersion.value.trim() ||
-    newText.value.trim()
-
-  if (!hasContent) {
-    manageMsg.textContent = "Nothing to clear."
-    pasteBox.focus()
-    return
-  }
-
-  const confirmed = window.confirm("Clear all verse fields?")
-  if (!confirmed) return
-
   pasteBox.value = ""
   newTitle.value = ""
   newRef.value = ""
@@ -1718,340 +1480,168 @@ function clearVerseForm() {
   groupSelect.value = ""
   updateGroupState()
   manageMsg.textContent = "Cleared."
-  pasteBox.focus()
 }
 
 async function deleteCustomVerse(id) {
-  if (!currentUser) {
-    manageMsg.textContent = "Please log in first."
-    return
-  }
-
+  if (!currentUser) return
   try {
     await deleteDoc(doc(db, "users", currentUser.uid, "verses", id))
     await loadVersesFromCloud()
-
     if (verses.length === 0) {
       setPracticeEnabled(false)
-      practiceVerseTitle.textContent = "No verses yet"
-      verseText.textContent = "Go to Library to add one."
+      practiceVersionLabel.textContent = "No verses yet"
       setTypingEnabled(false)
     }
-
-    manageMsg.textContent = "Deleted."
     showPage("library")
   } catch (error) {
-    console.error("Delete verse failed:", error)
     manageMsg.textContent = "Failed to delete verse."
   }
 }
 
 function autoFillFromPastedText() {
   const raw = (pasteBox.value || "").trim()
+  if (!raw) return
 
-  if (!raw) {
-    manageMsg.textContent = "Please paste the Bible text first."
-    return
-  }
-
-  const cleanInvisibleChars = (text) => {
-    return String(text || "")
-      .replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g, "")
-      .replace(/[“”]/g, '"')
-      .replace(/[‘’]/g, "'")
-      .replace(/\s+/g, " ")
-      .trim()
-  }
-
-  const lines = raw
-    .split(/\r?\n/)
-    .map(line => cleanInvisibleChars(line))
-    .filter(line => line !== "")
-
-  if (lines.length === 0) {
-    manageMsg.textContent = "Nothing to parse."
-    return
-  }
+  const cleanInvisibleChars = text => String(text || "").replace(/[\u200E\u200F\u202A-\u202E]/g, "").trim()
+  const lines = raw.split(/\r?\n/).map(l => cleanInvisibleChars(l)).filter(Boolean)
+  if (lines.length === 0) return
 
   const urlPattern = /^https?:\/\/\S+$/i
-  const urlLine = lines.find(line => urlPattern.test(line)) || ""
-  const contentLines = lines.filter(line => !urlPattern.test(line))
+  const urlLine = lines.find(l => urlPattern.test(l)) || ""
+  const contentLines = lines.filter(l => !urlPattern.test(l))
 
   let version = ""
-
   if (urlLine) {
-    const urlVersionMatch = urlLine.match(/\.([A-Z0-9]{2,8})$/i)
-    if (urlVersionMatch) {
-      version = urlVersionMatch[1].toUpperCase()
-    }
+    const match = urlLine.match(/\.([A-Z0-9]{2,8})$/i)
+    if (match) version = match[1].toUpperCase()
   }
 
   let referenceLine = ""
   let verseParts = []
-
   const referencePattern = /^((?:[1-3]\s*)?[A-Za-z]+(?:\s+[A-Za-z]+)*\s+\d+:\d+(?:-\d+)?)(?:\s+([A-Z]{2,8}))?$/i
 
   contentLines.forEach(line => {
-    const fullReferenceMatch = line.match(referencePattern)
-
-    if (fullReferenceMatch && !referenceLine) {
-      referenceLine = fullReferenceMatch[1].trim()
-
-      if (fullReferenceMatch[2]) {
-        version = fullReferenceMatch[2].toUpperCase()
-      }
-
+    const fullMatch = line.match(referencePattern)
+    if (fullMatch && !referenceLine) {
+      referenceLine = fullMatch[1].trim()
+      if (fullMatch[2]) version = fullMatch[2].toUpperCase()
       return
     }
-
     verseParts.push(line)
   })
 
-  let combinedText = verseParts.join(" ").replace(/\s+/g, " ").trim()
-
-  if (!referenceLine) {
-    const inlineReferencePattern = /((?:[1-3]\s*)?[A-Za-z]+(?:\s+[A-Za-z]+)*\s+\d+:\d+(?:-\d+)?)(?:\s+([A-Z]{2,8}))?/i
-    const inlineMatch = combinedText.match(inlineReferencePattern)
-
-    if (inlineMatch) {
-      referenceLine = inlineMatch[1].trim()
-
-      if (inlineMatch[2]) {
-        version = inlineMatch[2].toUpperCase()
-      }
-
-      combinedText = combinedText.replace(inlineMatch[0], "").trim()
-    }
-  }
-
-  combinedText = combinedText
-    .replace(/^\[\d+\]\s*/, "")
-    .replace(/^\s*['"]+/, "")
-    .replace(/['"]+\s*$/, "")
-    .replace(/\[\d+\]/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-
+  let combinedText = verseParts.join(" ").trim()
   newRef.value = referenceLine
   newVersion.value = version
   newText.value = combinedText
-
-  if (referenceLine || combinedText) {
-    manageMsg.textContent = "Auto filled."
-  } else {
-    manageMsg.textContent = "Could not detect verse text and reference."
-  }
+  manageMsg.textContent = "Auto filled."
 }
 
 if (difficultyEasy) {
   difficultyEasy.addEventListener("click", () => {
     tapDifficulty = "easy"
-    if (currentMode === "drag") {
-      buildDragPuzzle()
-      result.textContent = ""
-      result.className = "result"
-    } else {
-      updateDifficultyButtons()
-    }
+    if (currentMode === "drag") { buildDragPuzzle(); result.textContent = ""; result.className = "result"; }
+    else updateDifficultyButtons()
   })
 }
-
 if (difficultyMedium) {
   difficultyMedium.addEventListener("click", () => {
     tapDifficulty = "medium"
-    if (currentMode === "drag") {
-      buildDragPuzzle()
-      result.textContent = ""
-      result.className = "result"
-    } else {
-      updateDifficultyButtons()
-    }
+    if (currentMode === "drag") { buildDragPuzzle(); result.textContent = ""; result.className = "result"; }
+    else updateDifficultyButtons()
   })
 }
-
 if (difficultyHard) {
   difficultyHard.addEventListener("click", () => {
     tapDifficulty = "hard"
-    if (currentMode === "drag") {
-      buildDragPuzzle()
-      result.textContent = ""
-      result.className = "result"
-    } else {
-      updateDifficultyButtons()
-    }
+    if (currentMode === "drag") { buildDragPuzzle(); result.textContent = ""; result.className = "result"; }
+    else updateDifficultyButtons()
   })
 }
 
 function renderCollectionOptions(selectedValue = "") {
   if (!collectionSelect) return
-
   collectionSelect.innerHTML = `
     <option value="">Select collection</option>
     ${collections.map(item => `<option value="${item.name}">${item.name}</option>`).join("")}
     <option value="__add_new__">+ Add new collection</option>
   `
-
-  collectionSelect.value = selectedValue && collections.some(item => item.name === selectedValue)
-    ? selectedValue
-    : ""
+  collectionSelect.value = selectedValue && collections.some(i => i.name === selectedValue) ? selectedValue : ""
 }
 
 function renderGroupOptions(selectedValue = "") {
   if (!groupSelect) return
-
   const selectedCollection = collectionSelect.value || "None"
   let filteredGroups = groups.filter(item => item.collection === selectedCollection)
-
   groupSelect.innerHTML = `
     <option value="">Select group</option>
     ${filteredGroups.map(item => `<option value="${item.name}">${item.name}</option>`).join("")}
     <option value="__add_new__">+ Add new group</option>
   `
-
-  groupSelect.value = selectedValue && filteredGroups.some(item => item.name === selectedValue)
-    ? selectedValue
-    : ""
+  groupSelect.value = selectedValue && filteredGroups.some(i => i.name === selectedValue) ? selectedValue : ""
 }
 
 async function loadCollectionsFromCloud() {
-  if (!currentUser) {
-    collections = []
-    renderCollectionOptions()
-    return
-  }
-
+  if (!currentUser) return
   try {
     const snap = await getDocs(collection(db, "users", currentUser.uid, "collections"))
     collections = []
-
     snap.forEach(docSnap => {
-      const data = docSnap.data()
-      collections.push({
-        id: docSnap.id,
-        name: data.name || docSnap.id
-      })
+      collections.push({ id: docSnap.id, name: docSnap.data().name || docSnap.id })
     })
-
     collections.sort((a, b) => a.name.localeCompare(b.name))
     renderCollectionOptions()
-  } catch (error) {
-    console.error("Load collections failed:", error)
-  }
+  } catch (error) {}
 }
 
 async function loadGroupsFromCloud() {
-  if (!currentUser) {
-    groups = []
-    renderGroupOptions()
-    return
-  }
-
+  if (!currentUser) return
   try {
     const snap = await getDocs(collection(db, "users", currentUser.uid, "groups"))
     groups = []
-
     snap.forEach(docSnap => {
       const data = docSnap.data()
-      groups.push({
-        id: docSnap.id,
-        name: data.name || "",
-        collection: data.collection || "None"
-      })
+      groups.push({ id: docSnap.id, name: data.name || "", collection: data.collection || "None" })
     })
-
     groups.sort((a, b) => a.name.localeCompare(b.name))
     renderGroupOptions()
-  } catch (error) {
-    console.error("Load groups failed:", error)
-  }
+  } catch (error) {}
 }
 
 async function saveCollection() {
   const name = (newCollectionName.value || "").trim()
-
-  if (!currentUser) {
-    collectionMsg.textContent = "Please log in first."
-    return
-  }
-
-  if (!name) {
-    collectionMsg.textContent = "Please enter a collection name."
-    return
-  }
-
+  if (!name) return
   try {
-    await setDoc(doc(db, "users", currentUser.uid, "collections", name), {
-      name,
-      createdAt: serverTimestamp()
-    })
-
+    await setDoc(doc(db, "users", currentUser.uid, "collections", name), { name, createdAt: serverTimestamp() })
     await loadCollectionsFromCloud()
     renderCollectionOptions(name)
-    collectionMsg.textContent = "Saved."
     showPage("library")
-  } catch (error) {
-    console.error("Save collection failed:", error)
-    collectionMsg.textContent = "Failed to save collection."
-  }
+  } catch (error) {}
 }
 
 async function saveGroup() {
   const name = (newGroupName.value || "").trim()
   const parentCollection = collectionSelect.value.trim()
-
-  if (!currentUser) {
-    groupMsg.textContent = "Please log in first."
-    return
-  }
-
-  if (!parentCollection || parentCollection === "__add_new__") {
-    groupMsg.textContent = "Please select a collection first."
-    return
-  }
-
-  if (!name) {
-    groupMsg.textContent = "Please enter a group name."
-    return
-  }
-
+  if (!name || !parentCollection) return
   try {
-    const docId = parentCollection + "__" + name
-
-    await setDoc(doc(db, "users", currentUser.uid, "groups", docId), {
-      name,
-      collection: parentCollection,
-      createdAt: serverTimestamp()
+    await setDoc(doc(db, "users", currentUser.uid, "groups", parentCollection + "__" + name), {
+      name, collection: parentCollection, createdAt: serverTimestamp()
     })
-
     await loadGroupsFromCloud()
     groupSelect.value = name
-    groupMsg.textContent = "Saved."
     showPage("library")
-  } catch (error) {
-    console.error("Save group failed:", error)
-    groupMsg.textContent = "Failed to save group."
-  }
+  } catch (error) {}
 }
 
 collectionSelect.addEventListener("change", () => {
-  if (collectionSelect.value === "__add_new__") {
-    collectionSelect.value = ""
-    showPage("addCollection")
-    return
-  }
-
+  if (collectionSelect.value === "__add_new__") { collectionSelect.value = ""; showPage("addCollection"); return; }
   groupSelect.value = ""
   updateGroupState()
 })
 
 groupSelect.addEventListener("change", () => {
   if (groupSelect.value === "__add_new__") {
-    if (!collectionSelect.value) {
-      manageMsg.textContent = "Please select a collection first."
-      groupSelect.value = ""
-      return
-    }
-
+    if (!collectionSelect.value) { groupSelect.value = ""; return; }
     groupSelect.value = ""
     showPage("addGroup")
   }
@@ -2060,14 +1650,8 @@ groupSelect.addEventListener("change", () => {
 function updateGroupState() {
   const hasCollection = !!collectionSelect.value && collectionSelect.value !== "__add_new__"
   groupSelect.disabled = !hasCollection
-
-  if (!hasCollection) {
-    groupSelect.innerHTML = `
-      <option value="">Select collection first</option>
-    `
-  } else {
-    renderGroupOptions()
-  }
+  if (!hasCollection) groupSelect.innerHTML = `<option value="">Select collection first</option>`
+  else renderGroupOptions()
 }
 
 function hideAllModals() {
@@ -2086,453 +1670,196 @@ function showModal(modal) {
 }
 
 function openRenameCollectionModal() {
-  if (!selectedCollectionFilter || selectedCollectionFilter === "None") {
-    manageMsg.textContent = "Please select a collection first."
-    return
-  }
-
+  if (!selectedCollectionFilter || selectedCollectionFilter === "None") return
   renameCollectionInput.value = selectedCollectionFilter
   showModal(renameCollectionModal)
-  renameCollectionInput.focus()
 }
 
 function openRenameGroupModal() {
-  if (!selectedCollectionFilter || selectedCollectionFilter === "None") {
-    manageMsg.textContent = "Please select a collection first."
-    return
-  }
-
-  if (!selectedGroupFilter) {
-    manageMsg.textContent = "Please select a group first."
-    return
-  }
-
+  if (!selectedCollectionFilter || !selectedGroupFilter) return
   renameGroupInput.value = selectedGroupFilter
   showModal(renameGroupModal)
-  renameGroupInput.focus()
 }
 
 function openDeleteCollectionModal() {
-  if (!selectedCollectionFilter || selectedCollectionFilter === "None") {
-    manageMsg.textContent = "Please select a collection first."
-    return
-  }
-
+  if (!selectedCollectionFilter || selectedCollectionFilter === "None") return
   showModal(deleteCollectionModal)
 }
 
 function openDeleteGroupModal() {
-  if (!selectedCollectionFilter || selectedCollectionFilter === "None") {
-    manageMsg.textContent = "Please select a collection first."
-    return
-  }
-
-  if (!selectedGroupFilter) {
-    manageMsg.textContent = "Please select a group first."
-    return
-  }
-
+  if (!selectedCollectionFilter || !selectedGroupFilter) return
   showModal(deleteGroupModal)
 }
 
 async function renameCollection() {
   const oldName = selectedCollectionFilter
   const newName = (renameCollectionInput.value || "").trim()
-
-  if (!currentUser) {
-    manageMsg.textContent = "Please log in first."
-    return
-  }
-
-  if (!oldName || oldName === "None") {
-    manageMsg.textContent = "Please select a collection first."
-    return
-  }
-
-  if (!newName) {
-    manageMsg.textContent = "Please enter a new collection name."
-    return
-  }
-
-  if (newName === oldName) {
-    hideAllModals()
-    return
-  }
+  if (!newName || newName === oldName) { hideAllModals(); return; }
 
   try {
     const batch = writeBatch(db)
+    batch.set(doc(db, "users", currentUser.uid, "collections", newName), { name: newName, createdAt: serverTimestamp() })
+    batch.delete(doc(db, "users", currentUser.uid, "collections", oldName))
 
-    const oldCollectionRef = doc(db, "users", currentUser.uid, "collections", oldName)
-    const newCollectionRef = doc(db, "users", currentUser.uid, "collections", newName)
-
-    batch.set(newCollectionRef, {
-      name: newName,
-      createdAt: serverTimestamp()
-    })
-    batch.delete(oldCollectionRef)
-
-    const groupsSnap = await getDocs(query(
-      collection(db, "users", currentUser.uid, "groups"),
-      where("collection", "==", oldName)
-    ))
-
+    const groupsSnap = await getDocs(query(collection(db, "users", currentUser.uid, "groups"), where("collection", "==", oldName)))
     groupsSnap.forEach(docSnap => {
       const data = docSnap.data()
-      const newDocId = newName + "__" + data.name
-
-      batch.set(doc(db, "users", currentUser.uid, "groups", newDocId), {
-        name: data.name,
-        collection: newName,
-        createdAt: data.createdAt || serverTimestamp()
-      })
-
+      batch.set(doc(db, "users", currentUser.uid, "groups", newName + "__" + data.name), { name: data.name, collection: newName })
       batch.delete(doc(db, "users", currentUser.uid, "groups", docSnap.id))
     })
 
-    const versesSnap = await getDocs(query(
-      collection(db, "users", currentUser.uid, "verses"),
-      where("collection", "==", oldName)
-    ))
-
+    const versesSnap = await getDocs(query(collection(db, "users", currentUser.uid, "verses"), where("collection", "==", oldName)))
     versesSnap.forEach(docSnap => {
-      batch.update(doc(db, "users", currentUser.uid, "verses", docSnap.id), {
-        collection: newName
-      })
+      batch.update(doc(db, "users", currentUser.uid, "verses", docSnap.id), { collection: newName })
     })
 
     await batch.commit()
-
     selectedCollectionFilter = newName
     selectedGroupFilter = ""
-
     await loadCollectionsFromCloud()
     await loadGroupsFromCloud()
-    updateGroupState()
     await loadVersesFromCloud()
-
     hideAllModals()
-    manageMsg.textContent = "Collection renamed."
-  } catch (error) {
-    console.error("Rename collection failed:", error)
-    manageMsg.textContent = "Failed to rename collection."
-  }
+  } catch (error) {}
 }
 
 async function renameGroup() {
   const collectionName = selectedCollectionFilter
   const oldName = selectedGroupFilter
   const newName = (renameGroupInput.value || "").trim()
-
-  if (!currentUser) {
-    manageMsg.textContent = "Please log in first."
-    return
-  }
-
-  if (!collectionName || collectionName === "None") {
-    manageMsg.textContent = "Please select a collection first."
-    return
-  }
-
-  if (!oldName) {
-    manageMsg.textContent = "Please select a group first."
-    return
-  }
-
-  if (!newName) {
-    manageMsg.textContent = "Please enter a new group name."
-    return
-  }
-
-  if (newName === oldName) {
-    hideAllModals()
-    return
-  }
+  if (!newName || newName === oldName) { hideAllModals(); return; }
 
   try {
     const batch = writeBatch(db)
+    batch.set(doc(db, "users", currentUser.uid, "groups", collectionName + "__" + newName), { name: newName, collection: collectionName })
+    batch.delete(doc(db, "users", currentUser.uid, "groups", collectionName + "__" + oldName))
 
-    const oldDocId = collectionName + "__" + oldName
-    const newDocId = collectionName + "__" + newName
-
-    batch.set(doc(db, "users", currentUser.uid, "groups", newDocId), {
-      name: newName,
-      collection: collectionName,
-      createdAt: serverTimestamp()
-    })
-
-    batch.delete(doc(db, "users", currentUser.uid, "groups", oldDocId))
-
-    const versesSnap = await getDocs(query(
-      collection(db, "users", currentUser.uid, "verses"),
-      where("collection", "==", collectionName),
-      where("group", "==", oldName)
-    ))
-
+    const versesSnap = await getDocs(query(collection(db, "users", currentUser.uid, "verses"), where("collection", "==", collectionName), where("group", "==", oldName)))
     versesSnap.forEach(docSnap => {
-      batch.update(doc(db, "users", currentUser.uid, "verses", docSnap.id), {
-        group: newName
-      })
+      batch.update(doc(db, "users", currentUser.uid, "verses", docSnap.id), { group: newName })
     })
 
     await batch.commit()
-
     selectedGroupFilter = newName
-
     await loadGroupsFromCloud()
     await loadVersesFromCloud()
-
     hideAllModals()
-    manageMsg.textContent = "Group renamed."
-  } catch (error) {
-    console.error("Rename group failed:", error)
-    manageMsg.textContent = "Failed to rename group."
-  }
+  } catch (error) {}
 }
 
 async function deleteSelectedCollection() {
   const collectionName = selectedCollectionFilter
-
-  if (!currentUser) {
-    manageMsg.textContent = "Please log in first."
-    return
-  }
-
-  if (!collectionName || collectionName === "None") {
-    manageMsg.textContent = "Please select a collection first."
-    return
-  }
-
+  if (!collectionName || collectionName === "None") return
   try {
     const batch = writeBatch(db)
-
     batch.delete(doc(db, "users", currentUser.uid, "collections", collectionName))
-
-    const groupsSnap = await getDocs(query(
-      collection(db, "users", currentUser.uid, "groups"),
-      where("collection", "==", collectionName)
-    ))
-
-    groupsSnap.forEach(docSnap => {
-      batch.delete(doc(db, "users", currentUser.uid, "groups", docSnap.id))
-    })
-
-    const versesSnap = await getDocs(query(
-      collection(db, "users", currentUser.uid, "verses"),
-      where("collection", "==", collectionName)
-    ))
-
-    versesSnap.forEach(docSnap => {
-      batch.update(doc(db, "users", currentUser.uid, "verses", docSnap.id), {
-        collection: "None",
-        group: ""
-      })
-    })
-
+    const groupsSnap = await getDocs(query(collection(db, "users", currentUser.uid, "groups"), where("collection", "==", collectionName)))
+    groupsSnap.forEach(docSnap => batch.delete(doc(db, "users", currentUser.uid, "groups", docSnap.id)))
+    const versesSnap = await getDocs(query(collection(db, "users", currentUser.uid, "verses"), where("collection", "==", collectionName)))
+    versesSnap.forEach(docSnap => batch.update(doc(db, "users", currentUser.uid, "verses", docSnap.id), { collection: "None", group: "" }))
     await batch.commit()
-
     selectedCollectionFilter = "None"
     selectedGroupFilter = ""
-
     await loadCollectionsFromCloud()
     await loadGroupsFromCloud()
-    updateGroupState()
     await loadVersesFromCloud()
-
     hideAllModals()
-    manageMsg.textContent = "Collection deleted."
-  } catch (error) {
-    console.error("Delete collection failed:", error)
-    manageMsg.textContent = "Failed to delete collection."
-  }
+  } catch (error) {}
 }
 
 async function deleteSelectedGroup() {
   const collectionName = selectedCollectionFilter
   const groupName = selectedGroupFilter
-
-  if (!currentUser) {
-    manageMsg.textContent = "Please log in first."
-    return
-  }
-
-  if (!collectionName || collectionName === "None") {
-    manageMsg.textContent = "Please select a collection first."
-    return
-  }
-
-  if (!groupName) {
-    manageMsg.textContent = "Please select a group first."
-    return
-  }
-
+  if (!groupName) return
   try {
     const batch = writeBatch(db)
-
-    const docId = collectionName + "__" + groupName
-    batch.delete(doc(db, "users", currentUser.uid, "groups", docId))
-
-    const versesSnap = await getDocs(query(
-      collection(db, "users", currentUser.uid, "verses"),
-      where("collection", "==", collectionName),
-      where("group", "==", groupName)
-    ))
-
-    versesSnap.forEach(docSnap => {
-      batch.update(doc(db, "users", currentUser.uid, "verses", docSnap.id), {
-        group: ""
-      })
-    })
-
+    batch.delete(doc(db, "users", currentUser.uid, "groups", collectionName + "__" + groupName))
+    const versesSnap = await getDocs(query(collection(db, "users", currentUser.uid, "verses"), where("collection", "==", collectionName), where("group", "==", groupName)))
+    versesSnap.forEach(docSnap => batch.update(doc(db, "users", currentUser.uid, "verses", docSnap.id), { group: "" }))
     await batch.commit()
-
     selectedGroupFilter = ""
-
     await loadGroupsFromCloud()
     await loadVersesFromCloud()
-
     hideAllModals()
-    manageMsg.textContent = "Group deleted."
-  } catch (error) {
-    console.error("Delete group failed:", error)
-    manageMsg.textContent = "Failed to delete group."
-  }
+  } catch (error) {}
 }
 
 function renderMoveVerseCollectionOptions(selectedValue = "None") {
   if (!moveVerseCollectionSelect) return
-
   const collectionNames = ["None", ...collections.map(item => item.name).filter(name => name !== "None")]
-
-  moveVerseCollectionSelect.innerHTML = collectionNames
-    .map(name => `<option value="${name}">${name}</option>`)
-    .join("")
-
+  moveVerseCollectionSelect.innerHTML = collectionNames.map(name => `<option value="${name}">${name}</option>`).join("")
   moveVerseCollectionSelect.value = collectionNames.includes(selectedValue) ? selectedValue : "None"
 }
 
 function renderMoveVerseGroupOptions(collectionName, selectedValue = "") {
   if (!moveVerseGroupSelect) return
-
   if (!collectionName || collectionName === "None") {
     moveVerseGroupSelect.innerHTML = `<option value="">No group</option>`
-    moveVerseGroupSelect.value = ""
     return
   }
-
   const filteredGroups = groups.filter(item => item.collection === collectionName)
-
   moveVerseGroupSelect.innerHTML = `
     <option value="">No group</option>
     ${filteredGroups.map(item => `<option value="${item.name}">${item.name}</option>`).join("")}
   `
-
-  moveVerseGroupSelect.value =
-    selectedValue && filteredGroups.some(item => item.name === selectedValue)
-      ? selectedValue
-      : ""
+  moveVerseGroupSelect.value = selectedValue && filteredGroups.some(item => item.name === selectedValue) ? selectedValue : ""
 }
 
 function openMoveVerseModal(verse) {
   moveVerseId = verse.id
-
-  const currentCollection = verse.collection || "None"
-  const currentGroup = verse.group || ""
-
-  renderMoveVerseCollectionOptions(currentCollection)
-  renderMoveVerseGroupOptions(currentCollection, currentGroup)
-
+  renderMoveVerseCollectionOptions(verse.collection || "None")
+  renderMoveVerseGroupOptions(verse.collection || "None", verse.group || "")
   showModal(moveVerseModal)
 }
 
 async function saveMoveVerse() {
-  if (!currentUser) {
-    manageMsg.textContent = "Please log in first."
-    return
-  }
-
-  if (!moveVerseId) {
-    manageMsg.textContent = "No verse selected."
-    return
-  }
-
+  if (!moveVerseId) return
   const newCollection = moveVerseCollectionSelect.value || "None"
   const newGroup = newCollection === "None" ? "" : (moveVerseGroupSelect.value || "")
-
   try {
-    await updateDoc(doc(db, "users", currentUser.uid, "verses", moveVerseId), {
-      collection: newCollection,
-      group: newGroup
-    })
-
+    await updateDoc(doc(db, "users", currentUser.uid, "verses", moveVerseId), { collection: newCollection, group: newGroup })
     moveVerseId = ""
     hideAllModals()
     await loadVersesFromCloud()
-    manageMsg.textContent = "Verse moved."
-  } catch (error) {
-    console.error("Move verse failed:", error)
-    manageMsg.textContent = "Failed to move verse."
-  }
+  } catch (error) {}
 }
 
 function renderImportCollectionOptions(selectedValue = "None") {
   if (!importCollectionSelect) return
-
   const collectionNames = ["None", ...collections.map(item => item.name).filter(name => name !== "None")]
-
-  importCollectionSelect.innerHTML = collectionNames
-    .map(name => `<option value="${name}">${name}</option>`)
-    .join("")
-
+  importCollectionSelect.innerHTML = collectionNames.map(name => `<option value="${name}">${name}</option>`).join("")
   importCollectionSelect.value = collectionNames.includes(selectedValue) ? selectedValue : "None"
 }
 
 function renderImportGroupOptions(collectionName, selectedValue = "") {
   if (!importGroupSelect) return
-
   if (!collectionName || collectionName === "None") {
     importGroupSelect.innerHTML = `<option value="">No group</option>`
-    importGroupSelect.value = ""
     importGroupSelect.disabled = true
     return
   }
-
   const filteredGroups = groups.filter(item => item.collection === collectionName)
-
   importGroupSelect.innerHTML = `
     <option value="">No group</option>
     ${filteredGroups.map(item => `<option value="${item.name}">${item.name}</option>`).join("")}
   `
-
-  importGroupSelect.value =
-    selectedValue && filteredGroups.some(item => item.name === selectedValue)
-      ? selectedValue
-      : ""
-
+  importGroupSelect.value = selectedValue && filteredGroups.some(item => item.name === selectedValue) ? selectedValue : ""
   importGroupSelect.disabled = false
 }
 
 function parseCsvText(csvText) {
   const rows = []
   const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== "")
-
   if (lines.length < 2) return rows
 
-  const parseLine = (line) => {
+  const parseLine = line => {
     const result = []
-    let current = ""
-    let inQuotes = false
-
+    let current = "", inQuotes = false
     for (let i = 0; i < line.length; i++) {
-      const char = line[i]
-      const next = line[i + 1]
-
+      const char = line[i], next = line[i + 1]
       if (char === '"') {
-        if (inQuotes && next === '"') {
-          current += '"'
-          i += 1
-        } else {
-          inQuotes = !inQuotes
-        }
+        if (inQuotes && next === '"') { current += '"'; i++; }
+        else inQuotes = !inQuotes
       } else if (char === "," && !inQuotes) {
         result.push(current.trim())
         current = ""
@@ -2540,38 +1867,24 @@ function parseCsvText(csvText) {
         current += char
       }
     }
-
     result.push(current.trim())
     return result
   }
 
   const headers = parseLine(lines[0]).map(h => h.toLowerCase())
-
   for (let i = 1; i < lines.length; i++) {
     const values = parseLine(lines[i])
     const row = {}
-
-    headers.forEach((header, index) => {
-      row[header] = values[index] || ""
-    })
-
+    headers.forEach((header, index) => { row[header] = values[index] || ""; })
     rows.push(row)
   }
-
   return rows
 }
 
 async function importCsvFile() {
-  if (!currentUser) {
-    importCsvMsg.textContent = "Please log in first."
-    return
-  }
-
+  if (!currentUser) return
   const file = csvFileInput.files && csvFileInput.files[0]
-  if (!file) {
-    importCsvMsg.textContent = "Please choose a CSV file."
-    return
-  }
+  if (!file) { importCsvMsg.textContent = "Please choose a CSV file."; return; }
 
   const collectionValue = importCollectionSelect.value || "None"
   const groupValue = collectionValue === "None" ? "" : (importGroupSelect.value || "")
@@ -2579,11 +1892,7 @@ async function importCsvFile() {
   try {
     const csvText = await file.text()
     const rows = parseCsvText(csvText)
-
-    if (rows.length === 0) {
-      importCsvMsg.textContent = "No valid CSV rows found."
-      return
-    }
+    if (rows.length === 0) { importCsvMsg.textContent = "No valid rows found."; return; }
 
     const batch = writeBatch(db)
     let addedCount = 0
@@ -2593,37 +1902,25 @@ async function importCsvFile() {
       const version = (row.version || "").trim()
       const text = (row.text || "").trim()
       const title = (row.title || "").trim()
-
       if (!ref || !text) return
 
       const verseRef = doc(collection(db, "users", currentUser.uid, "verses"))
-
       batch.set(verseRef, {
-        ref,
-        version,
-        text,
-        title,
+        ref, version, text, title,
         collection: collectionValue,
         group: groupValue,
         order: verses.length + idx,
         createdAt: serverTimestamp()
       })
-
-      addedCount += 1
+      addedCount++
     })
 
-    if (addedCount === 0) {
-      importCsvMsg.textContent = "No rows with ref and text were found."
-      return
-    }
-
+    if (addedCount === 0) { importCsvMsg.textContent = "No valid ref and text found."; return; }
     await batch.commit()
     await loadVersesFromCloud()
-
     importCsvMsg.textContent = addedCount + " verse(s) imported."
     csvFileInput.value = ""
   } catch (error) {
-    console.error("CSV import failed:", error)
     importCsvMsg.textContent = "Failed to import CSV."
   }
 }
@@ -2636,17 +1933,12 @@ if (sortSelect) {
 }
 
 moveVerseCollectionSelect.addEventListener("change", () => {
-  const selectedCollection = moveVerseCollectionSelect.value || "None"
-  renderMoveVerseGroupOptions(selectedCollection, "")
+  renderMoveVerseGroupOptions(moveVerseCollectionSelect.value || "None", "")
 })
 
 btnAddCollectionInline.addEventListener("click", () => showPage("addCollection"))
 btnAddGroupInline.addEventListener("click", () => {
-  if (!selectedCollectionFilter || selectedCollectionFilter === "None") {
-    manageMsg.textContent = "Please select a collection first."
-    return
-  }
-
+  if (!selectedCollectionFilter || selectedCollectionFilter === "None") return
   collectionSelect.value = selectedCollectionFilter
   renderGroupOptions()
   showPage("addGroup")
@@ -2654,98 +1946,70 @@ btnAddGroupInline.addEventListener("click", () => {
 
 collectionFilters.addEventListener("click", event => {
   const btn = event.target.closest("button[data-collection]")
-  if (!btn) return
-  if (window._filterBusy) return
-
+  if (!btn || window._filterBusy) return
   const name = btn.dataset.collection
-  if (!name) return
-  if (selectedCollectionFilter === name) return
+  if (!name || selectedCollectionFilter === name) return
 
   window._filterBusy = true
-
   selectedCollectionFilter = name
   selectedGroupFilter = ""
-
   renderGroupFilters()
   renderLibrary()
-
-  setTimeout(() => {
-    window._filterBusy = false
-  }, 200)
+  setTimeout(() => { window._filterBusy = false }, 200)
 })
 
 groupFilters.addEventListener("click", event => {
   const btn = event.target.closest("button[data-group]")
-  if (!btn) return
-  if (window._filterBusy) return
-
+  if (!btn || window._filterBusy) return
   const name = btn.dataset.group
   if (!name) return
 
   window._filterBusy = true
-
   selectedGroupFilter = selectedGroupFilter === name ? "" : name
-
   renderLibrary()
-
-  setTimeout(() => {
-    window._filterBusy = false
-  }, 200)
+  setTimeout(() => { window._filterBusy = false }, 200)
 })
 
 btnRenameCollectionInline.addEventListener("click", openRenameCollectionModal)
 btnRenameGroupInline.addEventListener("click", openRenameGroupModal)
-
 btnDeleteCollectionInline.addEventListener("click", openDeleteCollectionModal)
 btnDeleteGroupInline.addEventListener("click", openDeleteGroupModal)
 
 btnSaveRenameCollection.addEventListener("click", renameCollection)
 btnCancelRenameCollection.addEventListener("click", hideAllModals)
-
 btnSaveRenameGroup.addEventListener("click", renameGroup)
 btnCancelRenameGroup.addEventListener("click", hideAllModals)
 
 btnConfirmDeleteCollection.addEventListener("click", deleteSelectedCollection)
 btnCancelDeleteCollection.addEventListener("click", hideAllModals)
-
 btnConfirmDeleteGroup.addEventListener("click", deleteSelectedGroup)
 btnCancelDeleteGroup.addEventListener("click", hideAllModals)
 
-modalOverlay.addEventListener("click", (event) => {
-  if (event.target === modalOverlay) {
-    hideAllModals()
-  }
+modalOverlay.addEventListener("click", event => {
+  if (event.target === modalOverlay) hideAllModals()
 })
 
 btnSaveCollection.addEventListener("click", saveCollection)
 btnCancelCollection.addEventListener("click", () => showPage("library"))
-
 btnSaveGroup.addEventListener("click", saveGroup)
 btnCancelGroup.addEventListener("click", () => showPage("library"))
 
-btnBackToGame.addEventListener("click", () => {
-  openGamePicker(selectedVerseId)
-})
-
+btnBackToGame.addEventListener("click", () => openGamePicker(selectedVerseId))
 btnHideAll.addEventListener("click", toggleHideAll)
 btnReset.addEventListener("click", resetCurrentGame)
 btnGiveHint.addEventListener("click", giveHint)
 btnCheck.addEventListener("click", checkCurrentMode)
 
 btnAutoFill.addEventListener("click", autoFillFromPastedText)
-
 btnSaveVerse.addEventListener("click", saveNewVerse)
 btnClearVerse.addEventListener("click", clearVerseForm)
 btnBackToLibrary.addEventListener("click", () => {
   showPage("library")
-  setTimeout(() => {
-    window.scrollTo(0, libraryScrollY)
-  }, 0)
+  setTimeout(() => window.scrollTo(0, libraryScrollY), 0)
 })
 
 btnLogin.addEventListener("click", loginWithGoogle)
 btnLogout.addEventListener("click", logoutUser)
-
 tabLibrary.addEventListener("click", () => showPage("library"))
 tabSettings.addEventListener("click", () => showPage("settings"))
 
@@ -2756,22 +2020,13 @@ modeLetters.addEventListener("click", () => startSelectedGame("letters"))
 btnSaveMoveVerse.addEventListener("click", saveMoveVerse)
 btnCancelMoveVerse.addEventListener("click", hideAllModals)
 
-pasteBox.addEventListener("paste", () => {
-  setTimeout(autoFillFromPastedText, 0)
-})
-
-themeSelect.addEventListener("change", event => {
-  saveTheme(event.target.value)
-})
-
-if (btnDeleteAccount) {
-  btnDeleteAccount.addEventListener("click", deleteCurrentAccount)
-}
+pasteBox.addEventListener("paste", () => setTimeout(autoFillFromPastedText, 0))
+themeSelect.addEventListener("change", event => saveTheme(event.target.value))
+if (btnDeleteAccount) btnDeleteAccount.addEventListener("click", deleteCurrentAccount)
 
 btnImportCsvPage.addEventListener("click", () => showPage("importCsv"))
 btnCancelImportCsv.addEventListener("click", () => showPage("library"))
 btnImportCsv.addEventListener("click", importCsvFile)
-
 importCollectionSelect.addEventListener("change", () => {
   renderImportGroupOptions(importCollectionSelect.value || "None", "")
 })
@@ -2780,17 +2035,11 @@ window.debugApp = {
   getVerses: () => verses,
   getCollections: () => collections,
   getGroups: () => groups,
-  getUser: () => currentUser,
-  getFilters: () => ({
-    selectedCollectionFilter,
-    selectedGroupFilter
-  })
+  getUser: () => currentUser
 }
 
 window.addEventListener("scroll", () => {
-  if (!pageLibrary.classList.contains("isHidden")) {
-    libraryScrollY = window.scrollY
-  }
+  if (!pageLibrary.classList.contains("isHidden")) libraryScrollY = window.scrollY
 })
 
 initTheme()
