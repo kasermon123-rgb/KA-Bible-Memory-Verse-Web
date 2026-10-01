@@ -42,9 +42,7 @@ function getBibleBookIndex(ref) {
   if (!ref) return 999
   const cleanRef = ref.trim().toLowerCase()
   for (let i = 0; i < BIBLE_BOOKS.length; i++) {
-    if (cleanRef.startsWith(BIBLE_BOOKS[i].toLowerCase())) {
-      return i
-    }
+    if (cleanRef.startsWith(BIBLE_BOOKS[i].toLowerCase())) return i
   }
   return 999
 }
@@ -70,7 +68,6 @@ const provider = new GoogleAuthProvider()
 async function ensureUserDoc(user) {
   const userRef = doc(db, "users", user.uid)
   const snap = await getDoc(userRef)
-
   if (!snap.exists()) {
     await setDoc(userRef, {
       email: user.email || "",
@@ -80,8 +77,6 @@ async function ensureUserDoc(user) {
     })
   }
 }
-
-const DEFAULT_VERSES = []
 
 let refPuzzleHidden = []
 let refPuzzleSlots = []
@@ -281,12 +276,10 @@ async function logoutUser() {
 
 onAuthStateChanged(auth, async (user) => {
   currentUser = user || null
-
   if (currentUser) {
     authMsg.textContent = "Signed in as " + (currentUser.displayName || currentUser.email || "User")
     btnLogin.classList.add("isHidden")
     btnLogout.classList.remove("isHidden")
-
     await ensureUserDoc(currentUser)
     await loadThemePreference()
     await loadCollectionsFromCloud()
@@ -297,7 +290,6 @@ onAuthStateChanged(auth, async (user) => {
     authMsg.textContent = "Not signed in."
     btnLogin.classList.remove("isHidden")
     btnLogout.classList.add("isHidden")
-
     applyTheme(getSavedTheme())
     verses = []
     selectedVerseId = ""
@@ -309,13 +301,11 @@ onAuthStateChanged(auth, async (user) => {
     renderCollectionOptions()
     updateGroupState()
     renderGroupOptions()
-
     if (refAnswer) refAnswer.value = ""
     if (titleAnswer) titleAnswer.value = ""
     answer.value = ""
     result.textContent = ""
     result.className = "result"
-
     renderLibrary()
     setPracticeEnabled(false)
     practiceVersionLabel.textContent = "No verses yet"
@@ -329,11 +319,9 @@ async function loadVersesFromCloud() {
     renderLibrary()
     return
   }
-
   try {
     const versesRef = collection(db, "users", currentUser.uid, "verses")
     const snapshot = await getDocs(versesRef)
-
     const cloudVerses = []
     snapshot.forEach((docSnap) => {
       const data = docSnap.data()
@@ -348,17 +336,10 @@ async function loadVersesFromCloud() {
         order: typeof data.order === "number" ? data.order : 9999
       })
     })
-
-    verses = DEFAULT_VERSES.concat(cloudVerses)
+    verses = cloudVerses
     renderLibrary()
-
-    if (verses.length > 0) {
-      loadVerse(verses[0].id)
-      setPracticeEnabled(true)
-    } else {
-      setPracticeEnabled(false)
-      practiceVersionLabel.textContent = "No verses yet"
-      setTypingEnabled(false)
+    if (verses.length > 0 && !selectedVerseId) {
+      selectedVerseId = verses[0].id
     }
   } catch (error) {
     console.error("Load verses failed:", error)
@@ -390,14 +371,6 @@ function setPracticeEnabled(enabled) {
   btnReset.disabled = !enabled
   btnCheck.disabled = !enabled
   btnGiveHint.disabled = !enabled
-
-  if (!enabled) {
-    answer.value = ""
-    if (refAnswer) refAnswer.value = ""
-    if (titleAnswer) titleAnswer.value = ""
-    result.textContent = ""
-    result.className = "result"
-  }
 }
 
 function loadStats() {
@@ -416,44 +389,6 @@ function getSavedTheme() {
   return localStorage.getItem("memoryTheme") || "sepia"
 }
 
-async function deleteCollectionDocsByPath(pathSegments) {
-  const snap = await getDocs(collection(db, ...pathSegments))
-  const tasks = snap.docs.map(docSnap => deleteDoc(docSnap.ref))
-  await Promise.all(tasks)
-}
-
-async function deleteCurrentAccountAfterReauth() {
-  const uid = currentUser.uid
-  await deleteCollectionDocsByPath(["users", uid, "verses"])
-  await deleteCollectionDocsByPath(["users", uid, "groups"])
-  await deleteCollectionDocsByPath(["users", uid, "collections"])
-  await deleteDoc(doc(db, "users", uid))
-  await deleteUser(currentUser)
-  if (settingsMsg) settingsMsg.textContent = "Account deleted."
-}
-
-async function deleteCurrentAccount() {
-  if (!currentUser) return
-  if (!window.confirm("Delete your account and all your data?")) return
-  if (!window.confirm("This cannot be undone. Are you sure?")) return
-
-  try {
-    if (settingsMsg) settingsMsg.textContent = "Deleting account..."
-    await deleteCurrentAccountAfterReauth()
-  } catch (error) {
-    if (error.code === "auth/requires-recent-login") {
-      try {
-        await reauthenticateWithPopup(currentUser, provider)
-        await deleteCurrentAccountAfterReauth()
-      } catch (reauthError) {
-        if (settingsMsg) settingsMsg.textContent = "Reauthentication failed."
-      }
-      return
-    }
-    if (settingsMsg) settingsMsg.textContent = "Failed to delete account."
-  }
-}
-
 function applyTheme(theme) {
   const validThemes = ["sepia", "white", "warm", "night", "forest"]
   const safeTheme = validThemes.includes(theme) ? theme : "sepia"
@@ -462,8 +397,7 @@ function applyTheme(theme) {
 }
 
 async function loadThemePreference() {
-  const localTheme = getSavedTheme()
-  applyTheme(localTheme)
+  applyTheme(getSavedTheme())
 }
 
 function saveTheme(theme) {
@@ -480,13 +414,12 @@ function loadVerse(id) {
   if (!verse) return
 
   selectedVerseId = id
-
   const fullRefText = verse.version ? verse.ref + " (" + verse.version + ")" : verse.ref
   practiceVersionLabel.textContent = fullRefText
 
   refWords = verse.ref ? verse.ref.split(/\s+/) : []
   titleWords = verse.title ? verse.title.split(/\s+/) : []
-  verseWords = verse.text.split(/\s+/)
+  verseWords = verse.text ? verse.text.split(/\s+/) : []
 
   if (refAnswerRow) refAnswerRow.classList.toggle("isHidden", refWords.length === 0)
   if (refAnswer) refAnswer.value = ""
@@ -496,7 +429,6 @@ function loadVerse(id) {
 
   words = [...verseWords]
   hiddenIndexes = []
-
   answer.value = ""
   result.textContent = ""
   result.className = "result"
@@ -610,7 +542,6 @@ function renderSegmentedWordBank(bankItems, selectedWordId, containerElem, onSel
   const availableItems = bankItems.filter(item => item.placedIn === null)
   if (availableItems.length === 0) return
 
-  // Limit shown choices to maximum 4 random items to prevent long overwhelming lists!
   const displayItems = [...availableItems].sort(() => Math.random() - 0.5).slice(0, 4)
 
   displayItems.forEach(item => {
@@ -630,10 +561,7 @@ function renderSegmentedWordBank(bankItems, selectedWordId, containerElem, onSel
 function renderDragPuzzle() {
   if (refBlankLine) refBlankLine.innerHTML = ""
   if (refWordBank) refWordBank.innerHTML = ""
-
-  if (refDragSection) {
-    refDragSection.classList.toggle("isHidden", refWords.length === 0)
-  }
+  if (refDragSection) refDragSection.classList.toggle("isHidden", refWords.length === 0)
 
   if (refWords.length > 0 && refBlankLine && refWordBank) {
     const refHiddenSet = new Set(refPuzzleHidden)
@@ -672,10 +600,7 @@ function renderDragPuzzle() {
     })
   }
 
-  if (titleDragSection) {
-    titleDragSection.classList.toggle("isHidden", titleWords.length === 0)
-  }
-
+  if (titleDragSection) titleDragSection.classList.toggle("isHidden", titleWords.length === 0)
   if (titleBlankLine) titleBlankLine.innerHTML = ""
   if (titleWordBank) titleWordBank.innerHTML = ""
 
