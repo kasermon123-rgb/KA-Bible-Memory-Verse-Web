@@ -557,3 +557,21 @@ textarea:disabled {
 #pageImportCsv input[type="file"] {
   padding: 10px 0;
 }
+
+/* Drag and Drop styling */
+.customItem[draggable="true"] {
+  cursor: grab;
+}
+
+.customItem.dragging {
+  opacity: 0.4;
+  border: 2px dashed var(--accent);
+}
+
+.dragHandle {
+  cursor: grab;
+  font-size: 18px;
+  color: var(--muted);
+  user-select: none;
+  padding-right: 8px;
+}

@@ -234,8 +234,6 @@
             </section>
         </section>
 
-        <!--STOP HERE!-->
-
         <section id="pageLibrary">
 
             <section class="card">
@@ -290,11 +288,6 @@
                     <textarea id="newText" rows="4"></textarea>
                 </div>
 
-                <div>
-
-
-                </div>
-
                 <div class="controls">
                     <button type="button" id="btnSaveVerse">Save Verse</button>
                     <button id="btnClearVerse" type="button" class="ghost">Clear</button>
@@ -329,6 +322,19 @@
                                 Group</button>
                         </div>
                     </div>
+                </div>
+
+                <br>
+
+                <div class="row">
+                    <label for="sortSelect">Sort Verses By</label>
+                    <select id="sortSelect">
+                        <option value="custom">Manual (Drag & Drop)</option>
+                        <option value="titleAsc">Title (A → Z)</option>
+                        <option value="titleDesc">Title (Z → A)</option>
+                        <option value="bibleAsc">Bible Order (Genesis → Revelation)</option>
+                        <option value="bibleDesc">Bible Order (Revelation → Genesis)</option>
+                    </select>
                 </div>
 
                 <br>
@@ -438,8 +444,6 @@
 
         </section>
 
-
-
         <section id="pageSettings" class="isHidden">
 
             <section class="card">
@@ -540,11 +544,6 @@
         </footer>
 
     </main>
-
-    <!--
-    <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-    <script>eruda.init();</script>
-    -->
 
     <script type="module" src="app.js"></script>
 

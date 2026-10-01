@@ -1,32 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"
 
-import { getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"
-
-async function ensureUserDoc(user) {
-
-  const userRef = doc(db, "users", user.uid)
-
-  const snap = await getDoc(userRef)
-
-  console.log("User logged in:", user.uid)
-
-  if (!snap.exists()) {
-
-     console.log("Creating NEW Firestore user")
-
-    await setDoc(userRef, {
-      email: user.email || "",
-      name: user.displayName || "",
-      createdAt: serverTimestamp(),
-      welcomeEmailSent: false
-    })
-
-  } else {
-    console.log("User already exists, skip create")
-  }
-
-}
-
 import {
   getAuth,
   GoogleAuthProvider,
@@ -42,6 +15,7 @@ import {
   collection,
   addDoc,
   getDocs,
+  getDoc,
   deleteDoc,
   doc,
   setDoc,
@@ -52,7 +26,33 @@ import {
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"
 
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// Canonical order of Bible books
+const BIBLE_BOOKS = [
+  "Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy", "Joshua", "Judges", "Ruth",
+  "1 Samuel", "2 Samuel", "1 Kings", "2 Kings", "1 Chronicles", "2 Chronicles", "Ezra",
+  "Nehemiah", "Esther", "Job", "Psalms", "Psalm", "Proverbs", "Ecclesiastes", "Song of Solomon",
+  "Isaiah", "Jeremiah", "Lamentations", "Ezekiel", "Daniel", "Hosea", "Joel", "Amos",
+  "Obadiah", "Jonah", "Micah", "Nahum", "Habakkuk", "Zephaniah", "Haggai", "Zechariah", "Malachi",
+  "Matthew", "Mark", "Luke", "John", "Acts", "Romans", "1 Corinthians", "2 Corinthians",
+  "Galatians", "Ephesians", "Philippians", "Colossians", "1 Thessalonians", "2 Thessalonians",
+  "1 Timothy", "2 Timothy", "Titus", "Philemon", "Hebrews", "James", "1 Peter", "2 Peter",
+  "1 John", "2 John", "3 John", "Jude", "Revelation"
+]
+
+function getBibleBookIndex(ref) {
+  if (!ref) return 999
+  const cleanRef = ref.trim().toLowerCase()
+  for (let i = 0; i < BIBLE_BOOKS.length; i++) {
+    if (cleanRef.startsWith(BIBLE_BOOKS[i].toLowerCase())) {
+      return i
+    }
+  }
+  return 999
+}
+
+let selectedSortMode = "custom"
+let draggedVerseId = null
+
 const firebaseConfig = {
   apiKey: "AIzaSyC9ree98RpN5OlY5GnzKoLwT04WLxQm3sE",
   authDomain: "scripture-memory-c047d.firebaseapp.com",
@@ -64,6 +64,28 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig)
+const auth = getAuth(app)
+const db = getFirestore(app)
+const provider = new GoogleAuthProvider()
+
+async function ensureUserDoc(user) {
+  const userRef = doc(db, "users", user.uid)
+  const snap = await getDoc(userRef)
+
+  console.log("User logged in:", user.uid)
+
+  if (!snap.exists()) {
+    console.log("Creating NEW Firestore user")
+    await setDoc(userRef, {
+      email: user.email || "",
+      name: user.displayName || "",
+      createdAt: serverTimestamp(),
+      welcomeEmailSent: false
+    })
+  } else {
+    console.log("User already exists, skip create")
+  }
+}
 
 const DEFAULT_VERSES = []
 
@@ -93,7 +115,6 @@ let groups = []
 let selectedCollectionFilter = ""
 let selectedGroupFilter = ""
 let moveVerseId = ""
-let isRenderingLibrary = false
 let libraryScrollY = 0
 
 const btnLogin = document.getElementById("btnLogin")
@@ -188,10 +209,6 @@ const groupMsg = document.getElementById("groupMsg")
 const collectionFilters = document.getElementById("collectionFilters")
 const groupFilters = document.getElementById("groupFilters")
 
-const auth = getAuth(app)
-const db = getFirestore(app)
-const provider = new GoogleAuthProvider()
-
 const btnAddCollectionInline = document.getElementById("btnAddCollectionInline")
 const btnRenameCollectionInline = document.getElementById("btnRenameCollectionInline")
 const btnDeleteCollectionInline = document.getElementById("btnDeleteCollectionInline")
@@ -235,11 +252,12 @@ const btnImportCsv = document.getElementById("btnImportCsv")
 const btnCancelImportCsv = document.getElementById("btnCancelImportCsv")
 const importCsvMsg = document.getElementById("importCsvMsg")
 
+const sortSelect = document.getElementById("sortSelect")
+
 let currentUser = null
 
 async function loginWithGoogle() {
   console.log("login button clicked")
-
   try {
     await signInWithPopup(auth, provider)
     console.log("popup opened or login succeeded")
@@ -265,7 +283,6 @@ onAuthStateChanged(auth, async (user) => {
     authMsg.textContent = "Signed in as " + (currentUser.displayName || currentUser.email || "User")
     btnLogin.classList.add("isHidden")
     btnLogout.classList.remove("isHidden")
-    
 
     await ensureUserDoc(currentUser)
     authMsg.textContent = "Signed in as " + (currentUser.displayName || currentUser.email || "User")
@@ -275,15 +292,13 @@ onAuthStateChanged(auth, async (user) => {
     await loadGroupsFromCloud()
     updateGroupState()
     await loadVersesFromCloud()
-  }
-
-  else {
+  } else {
     authMsg.textContent = "Not signed in."
     btnLogin.classList.remove("isHidden")
     btnLogout.classList.add("isHidden")
 
     applyTheme(getSavedTheme())
-    if (settingsMsg) settingsMsg.textContent = "Theme saved in browser. "
+    if (settingsMsg) settingsMsg.textContent = "Theme saved in browser."
 
     verses = []
     selectedVerseId = ""
@@ -330,7 +345,8 @@ async function loadVersesFromCloud() {
         version: data.version || "",
         text: data.text || "",
         collection: data.collection || "None",
-        group: data.group || ""
+        group: data.group || "",
+        order: typeof data.order === "number" ? data.order : 9999
       })
     })
 
@@ -437,7 +453,6 @@ async function deleteCurrentAccount() {
 
   try {
     if (settingsMsg) settingsMsg.textContent = "Deleting account..."
-
     await deleteCurrentAccountAfterReauth()
   } catch (error) {
     console.error("Delete account failed:", error)
@@ -456,7 +471,6 @@ async function deleteCurrentAccount() {
     if (settingsMsg) settingsMsg.textContent = "Failed to delete account."
   }
 }
-
 
 function applyTheme(theme) {
   const validThemes = ["sepia", "white", "warm", "night", "forest"]
@@ -494,7 +508,6 @@ function initTheme() {
   applyTheme(getSavedTheme())
 }
 
-
 function loadVerse(id) {
   const verse = verses.find(v => v.id === id)
   if (!verse) return
@@ -521,32 +534,12 @@ function loadVerse(id) {
   }
 
   words = [...verseWords]
-
   hiddenIndexes = []
 
   renderVerse()
   answer.value = ""
   result.textContent = ""
   result.className = "result"
-}
-
-function rebuildDropdown(selectedId) {
-  refreshVerses()
-
-  if (verses.length === 0) {
-    setPracticeEnabled(false)
-    practiceVerseTitle.textContent = "No verses yet"
-    verseText.textContent = "Go to Library to add one."
-    setTypingEnabled(false)
-    return
-  }
-
-  const idToLoad = selectedId && verses.some(v => v.id === selectedId)
-    ? selectedId
-    : verses[0].id
-
-  setPracticeEnabled(true)
-  loadVerse(idToLoad)
 }
 
 function renderVerse() {
@@ -566,18 +559,6 @@ function renderVerse() {
     verseText.appendChild(span)
     verseText.appendChild(document.createTextNode(" "))
   })
-}
-
-function hideRandomWord() {
-  const visible = words.map((word, index) => index).filter(index => !hiddenIndexes.includes(index))
-  if (visible.length === 0) return
-
-  const randomIndex = visible[Math.floor(Math.random() * visible.length)]
-  hiddenIndexes.push(randomIndex)
-
-  renderVerse()
-  setTypingEnabled(true)
-  answer.focus()
 }
 
 function revealOneWord() {
@@ -1280,7 +1261,6 @@ function updatePracticeUI() {
   lettersGame.classList.toggle("isHidden", !isLetters)
 
   btnHideAll.classList.toggle("isHidden", isDrag || isLetters)
-
   answerRow.classList.toggle("isHidden", isDrag || isLetters)
 
   if (titleAnswerRow) {
@@ -1340,7 +1320,7 @@ function showPage(name) {
     }, 0)
 
     return
-}
+  }
 
   if (name === "addCollection") {
     pageAddCollection.classList.remove("isHidden")
@@ -1446,9 +1426,6 @@ function renderGroupFilters() {
   })
 }
 
-let _libraryRenderPending = false
-let _filterBusy = false
-
 function renderLibrary() {
   if (window._libraryRenderPending) return
 
@@ -1487,6 +1464,18 @@ function _renderLibraryNow() {
     )
   }
 
+  if (selectedSortMode === "titleAsc") {
+    filteredVerses.sort((a, b) => (a.title || a.ref).localeCompare(b.title || b.ref))
+  } else if (selectedSortMode === "titleDesc") {
+    filteredVerses.sort((a, b) => (b.title || b.ref).localeCompare(a.title || a.ref))
+  } else if (selectedSortMode === "bibleAsc") {
+    filteredVerses.sort((a, b) => getBibleBookIndex(a.ref) - getBibleBookIndex(b.ref))
+  } else if (selectedSortMode === "bibleDesc") {
+    filteredVerses.sort((a, b) => getBibleBookIndex(b.ref) - getBibleBookIndex(a.ref))
+  } else if (selectedSortMode === "custom") {
+    filteredVerses.sort((a, b) => (a.order || 0) - (b.order || 0))
+  }
+
   filteredVerses = filteredVerses.slice(0, 100)
 
   if (filteredVerses.length === 0) {
@@ -1494,15 +1483,63 @@ function _renderLibraryNow() {
     return
   }
 
-  filteredVerses.forEach(verse => {
+  filteredVerses.forEach((verse) => {
     const row = document.createElement("div")
     row.className = "customItem"
+    row.dataset.id = verse.id
+
+    if (selectedSortMode === "custom") {
+      row.draggable = true
+
+      row.addEventListener("dragstart", (e) => {
+        draggedVerseId = verse.id
+        row.classList.add("dragging")
+        e.dataTransfer.effectAllowed = "move"
+      })
+
+      row.addEventListener("dragend", () => {
+        row.classList.remove("dragging")
+        draggedVerseId = null
+      })
+
+      row.addEventListener("dragover", (e) => {
+        e.preventDefault()
+        e.dataTransfer.dropEffect = "move"
+      })
+
+      row.addEventListener("drop", async (e) => {
+        e.preventDefault()
+        if (!draggedVerseId || draggedVerseId === verse.id) return
+
+        const fromIndex = verses.findIndex(v => v.id === draggedVerseId)
+        const toIndex = verses.findIndex(v => v.id === verse.id)
+
+        if (fromIndex !== -1 && toIndex !== -1) {
+          const [movedVerse] = verses.splice(fromIndex, 1)
+          verses.splice(toIndex, 0, movedVerse)
+
+          verses.forEach((v, idx) => { v.order = idx })
+
+          renderLibrary()
+          await saveVersesOrderToCloud()
+        }
+      })
+    }
 
     const meta = document.createElement("div")
     meta.className = "meta"
 
     const title = document.createElement("div")
-    title.textContent = verse.title || verse.ref || "Untitled"
+
+    if (selectedSortMode === "custom") {
+      const handle = document.createElement("span")
+      handle.className = "dragHandle"
+      handle.textContent = "☰ "
+      title.appendChild(handle)
+    }
+
+    const titleText = document.createTextNode(verse.title || verse.ref || "Untitled")
+    title.appendChild(titleText)
 
     const small = document.createElement("small")
     small.textContent =
@@ -1549,6 +1586,19 @@ function _renderLibraryNow() {
   })
 }
 
+async function saveVersesOrderToCloud() {
+  if (!currentUser) return
+  try {
+    const batch = writeBatch(db)
+    verses.forEach((v, idx) => {
+      const verseRef = doc(db, "users", currentUser.uid, "verses", v.id)
+      batch.update(verseRef, { order: idx })
+    })
+    await batch.commit()
+  } catch (err) {
+    console.error("Failed to save reordered verses:", err)
+  }
+}
 
 function confirmDelete(id, row) {
   row.innerHTML = ""
@@ -1620,6 +1670,7 @@ async function saveNewVerse() {
       text,
       collection: collectionValue,
       group: groupValue,
+      order: verses.length,
       createdAt: serverTimestamp()
     })
 
@@ -1656,10 +1707,7 @@ function clearVerseForm() {
   }
 
   const confirmed = window.confirm("Clear all verse fields?")
-
-  if (!confirmed) {
-    return
-  }
+  if (!confirmed) return
 
   pasteBox.value = ""
   newTitle.value = ""
@@ -1681,7 +1729,6 @@ async function deleteCustomVerse(id) {
 
   try {
     await deleteDoc(doc(db, "users", currentUser.uid, "verses", id))
-
     await loadVersesFromCloud()
 
     if (verses.length === 0) {
@@ -1853,7 +1900,6 @@ function renderGroupOptions(selectedValue = "") {
   if (!groupSelect) return
 
   const selectedCollection = collectionSelect.value || "None"
-
   let filteredGroups = groups.filter(item => item.collection === selectedCollection)
 
   groupSelect.innerHTML = `
@@ -2023,7 +2069,6 @@ function updateGroupState() {
     renderGroupOptions()
   }
 }
-
 
 function hideAllModals() {
   modalOverlay.classList.add("isHidden")
@@ -2543,7 +2588,7 @@ async function importCsvFile() {
     const batch = writeBatch(db)
     let addedCount = 0
 
-    rows.forEach(row => {
+    rows.forEach((row, idx) => {
       const ref = (row.ref || "").trim()
       const version = (row.version || "").trim()
       const text = (row.text || "").trim()
@@ -2560,6 +2605,7 @@ async function importCsvFile() {
         title,
         collection: collectionValue,
         group: groupValue,
+        order: verses.length + idx,
         createdAt: serverTimestamp()
       })
 
@@ -2580,6 +2626,13 @@ async function importCsvFile() {
     console.error("CSV import failed:", error)
     importCsvMsg.textContent = "Failed to import CSV."
   }
+}
+
+if (sortSelect) {
+  sortSelect.addEventListener("change", (e) => {
+    selectedSortMode = e.target.value
+    renderLibrary()
+  })
 }
 
 moveVerseCollectionSelect.addEventListener("change", () => {
@@ -2679,12 +2732,10 @@ btnReset.addEventListener("click", resetCurrentGame)
 btnGiveHint.addEventListener("click", giveHint)
 btnCheck.addEventListener("click", checkCurrentMode)
 
-
 btnAutoFill.addEventListener("click", autoFillFromPastedText)
 
 btnSaveVerse.addEventListener("click", saveNewVerse)
 btnClearVerse.addEventListener("click", clearVerseForm)
-btnBackToLibrary.addEventListener("click", () => showPage("library"))
 btnBackToLibrary.addEventListener("click", () => {
   showPage("library")
   setTimeout(() => {
@@ -2717,11 +2768,8 @@ if (btnDeleteAccount) {
   btnDeleteAccount.addEventListener("click", deleteCurrentAccount)
 }
 
-
 btnImportCsvPage.addEventListener("click", () => showPage("importCsv"))
-
 btnCancelImportCsv.addEventListener("click", () => showPage("library"))
-
 btnImportCsv.addEventListener("click", importCsvFile)
 
 importCollectionSelect.addEventListener("change", () => {
@@ -2744,8 +2792,6 @@ window.addEventListener("scroll", () => {
     libraryScrollY = window.scrollY
   }
 })
-
-
 
 initTheme()
 showPage("library")
