@@ -2511,54 +2511,131 @@ function renderImportGroupOptions(collectionName, selectedValue = "") {
   importGroupSelect.disabled = false
 }
 
-function parseCsvText(csvText) {
-  const rows = []
-  const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== "")
+function stripBom(text) {
+  return String(text || "").replace(/^\uFEFF/, "")
+}
 
-  if (lines.length < 2) return rows
+function normalizeHeader(header) {
+  return stripBom(header)
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
 
-  const parseLine = (line) => {
-    const result = []
-    let current = ""
-    let inQuotes = false
+function headerField(header) {
+  const key = normalizeHeader(header)
+  if (["ref", "reference", "verse reference", "scripture reference", "citation", "verse ref"].includes(key)) return "ref"
+  if (["text", "verse", "verse text", "scripture", "scripture text", "passage", "content", "verse content"].includes(key)) return "text"
+  if (["version", "translation", "ver", "bible version"].includes(key)) return "version"
+  if (["title", "name", "topic", "memory title"].includes(key)) return "title"
+  return ""
+}
 
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i]
-      const next = line[i + 1]
+function detectDelimiter(text) {
+  const sample = text.split("\n").slice(0, 8).join("\n")
+  const counts = { ",": 0, ";": 0, "\t": 0 }
+  let inQuotes = false
 
-      if (char === '"') {
-        if (inQuotes && next === '"') {
-          current += '"'
-          i += 1
-        } else {
-          inQuotes = !inQuotes
-        }
-      } else if (char === "," && !inQuotes) {
-        result.push(current.trim())
-        current = ""
+  for (let i = 0; i < sample.length; i++) {
+    const char = sample[i]
+    const next = sample[i + 1]
+    if (char === '"') {
+      if (inQuotes && next === '"') i += 1
+      else inQuotes = !inQuotes
+      continue
+    }
+    if (!inQuotes && counts[char] !== undefined) counts[char] += 1
+  }
+
+  if (counts["\t"] > counts[","] && counts["\t"] >= counts[";"]) return "\t"
+  if (counts[";"] > counts[","]) return ";"
+  return ","
+}
+
+function parseCsvRecords(csvText) {
+  const text = stripBom(csvText).replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+  if (!text.trim()) return []
+
+  const delimiter = detectDelimiter(text)
+  const records = []
+  let row = []
+  let current = ""
+  let inQuotes = false
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i]
+    const next = text[i + 1]
+
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        current += '"'
+        i += 1
       } else {
-        current += char
+        inQuotes = !inQuotes
       }
+      continue
     }
 
-    result.push(current.trim())
-    return result
+    if (!inQuotes && char === delimiter) {
+      row.push(current.trim())
+      current = ""
+      continue
+    }
+
+    if (!inQuotes && char === "\n") {
+      row.push(current.trim())
+      if (row.some(cell => cell !== "")) records.push(row)
+      row = []
+      current = ""
+      continue
+    }
+
+    current += char
   }
 
-  const headers = parseLine(lines[0]).map(h => h.toLowerCase())
+  row.push(current.trim())
+  if (row.some(cell => cell !== "")) records.push(row)
+  return records
+}
 
-  for (let i = 1; i < lines.length; i++) {
-    const values = parseLine(lines[i])
-    const row = {}
+function looksLikeReference(value) {
+  return /\d+\s*:\s*\d+/.test(String(value || ""))
+}
 
-    headers.forEach((header, index) => {
-      row[header] = values[index] || ""
-    })
+function parseCsvText(csvText) {
+  const records = parseCsvRecords(csvText)
+  if (records.length === 0) return []
 
-    rows.push(row)
-  }
+  const mappedHeaders = records[0].map(headerField)
+  const hasHeader = mappedHeaders.includes("ref") && mappedHeaders.includes("text")
+  const dataRecords = hasHeader ? records.slice(1) : records
 
-  return rows
+  return dataRecords.map(values => {
+    const row = { ref: "", version: "", text: "", title: "" }
+
+    if (hasHeader) {
+      mappedHeaders.forEach((field, index) => {
+        if (field) row[field] = values[index] || ""
+      })
+      return row
+    }
+
+    // No recognized header: ref, version, text, title by position.
+    // If column 2 looks like the verse, treat the file as ref, text, title.
+    if (values.length >= 3 && !looksLikeReference(values[1]) && looksLikeReference(values[0]) && values[2] && values[1] && values[1].length > 40) {
+      row.ref = values[0] || ""
+      row.text = values[1] || ""
+      row.title = values[2] || ""
+      return row
+    }
+
+    row.ref = values[0] || ""
+    row.version = values[1] || ""
+    row.text = values[2] || ""
+    row.title = values[3] || ""
+    return row
+  }).filter(row => row.ref || row.text || row.version || row.title)
 }
 
 async function importCsvFile() {
@@ -2581,52 +2658,64 @@ async function importCsvFile() {
     const rows = parseCsvText(csvText)
 
     if (rows.length === 0) {
-      importCsvMsg.textContent = "No valid CSV rows found."
+      importCsvMsg.textContent = "No valid CSV rows found. Use columns ref, version, text, title."
       return
     }
 
-    const batch = writeBatch(db)
-    let addedCount = 0
+    const versesToAdd = []
 
-    rows.forEach((row, idx) => {
+    rows.forEach(row => {
       const ref = (row.ref || "").trim()
       const version = (row.version || "").trim()
       const text = (row.text || "").trim()
       const title = (row.title || "").trim()
-
       if (!ref || !text) return
+      versesToAdd.push({ ref, version, text, title })
+    })
 
+    if (versesToAdd.length === 0) {
+      importCsvMsg.textContent = "No rows with a reference and verse text were found. Headers can be ref/reference and text/verse."
+      return
+    }
+
+    const BATCH_LIMIT = 450
+    let pending = 0
+    let batch = writeBatch(db)
+
+    for (let idx = 0; idx < versesToAdd.length; idx++) {
+      const item = versesToAdd[idx]
       const verseRef = doc(collection(db, "users", currentUser.uid, "verses"))
 
       batch.set(verseRef, {
-        ref,
-        version,
-        text,
-        title,
+        ref: item.ref,
+        version: item.version,
+        text: item.text,
+        title: item.title,
         collection: collectionValue,
         group: groupValue,
         order: verses.length + idx,
         createdAt: serverTimestamp()
       })
 
-      addedCount += 1
-    })
-
-    if (addedCount === 0) {
-      importCsvMsg.textContent = "No rows with ref and text were found."
-      return
+      pending += 1
+      if (pending >= BATCH_LIMIT) {
+        await batch.commit()
+        batch = writeBatch(db)
+        pending = 0
+      }
     }
 
-    await batch.commit()
+    if (pending > 0) await batch.commit()
     await loadVersesFromCloud()
 
-    importCsvMsg.textContent = addedCount + " verse(s) imported."
+    importCsvMsg.textContent = versesToAdd.length + " verse(s) imported."
     csvFileInput.value = ""
   } catch (error) {
     console.error("CSV import failed:", error)
-    importCsvMsg.textContent = "Failed to import CSV."
+    importCsvMsg.textContent = "Failed to import CSV. " + (error && error.message ? error.message : "Check the file and try again.")
   }
 }
+
 
 if (sortSelect) {
   sortSelect.addEventListener("change", (e) => {
