@@ -439,11 +439,13 @@ textarea:disabled {
 }
 
 #practiceTitle,
-#gameMemoryTitle {
+#gameMemoryTitle,
+#practiceVersion {
   font-size: 16px;
   margin-top: -4px;
 }
 
+#refLettersGame,
 #titleLettersGame,
 #verseLettersGame {
   display: flex;

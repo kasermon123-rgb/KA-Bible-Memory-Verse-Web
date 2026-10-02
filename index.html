@@ -82,11 +82,12 @@
                 <!-- Row for showing the selected verse reference -->
                 <div class="row">
 
-                    <!-- Label for the verse reference -->
-                    <label>Verse</label>
+                    <!-- Label for the verse reference. Hidden as blanks while a game is running. -->
+                    <label>Reference</label>
 
                     <!-- JavaScript inserts the verse reference here -->
                     <div class="ref" id="practiceVerseTitle"></div>
+                    <div class="stats" id="practiceVersion"></div>
 
                 </div>
 
@@ -99,6 +100,14 @@
                 <!-- First letter mode section.
                          Hidden until first letter mode is selected. -->
                 <div id="lettersGame" class="isHidden">
+
+                    <!-- Reference area for first letter mode. -->
+                    <div id="refLettersSection" class="verse">
+
+                        <label>Reference</label>
+
+                        <div id="refLettersGame"></div>
+                    </div>
 
                     <!-- Title area for first letter mode.
                              Hidden if there is no title. -->
@@ -147,6 +156,18 @@
                         </div>
                     </div>
 
+                    <!-- Reference blank-filling section. -->
+                    <div id="refDragSection">
+
+                        <label>Reference</label>
+
+                        <div class="verse" id="refBlankLine"></div>
+
+                        <div id="refWordBank" class="controls"></div>
+
+                        <hr class="sep">
+                    </div>
+
                     <!-- Title blank-filling section. Hidden if there is no title. -->
                     <div id="titleDragSection" class="isHidden">
 
@@ -183,6 +204,14 @@
 
                 <!-- Separator line -->
                 <hr class="sep">
+
+                <!-- Row for typing the reference from memory. -->
+                <div class="row" id="refAnswerRow">
+
+                    <label>Type Reference from Memory</label>
+
+                    <input id="refAnswer" type="text" placeholder="Example: John 3:16">
+                </div>
 
                 <!-- Row for typing the title from memory. Hidden unless the title input is needed. -->
                 <div class="row isHidden" id="titleAnswerRow">
@@ -427,6 +456,8 @@
                 <div class="ref" id="gameMemoryTitle"></div>
 
                 <div class="verse" id="gameVerse"></div>
+
+                <div class="stats">Each game also asks you to recall the reference.</div>
 
                 <div class="controls">
                     <button type="button" id="modeType">Type from memory</button>

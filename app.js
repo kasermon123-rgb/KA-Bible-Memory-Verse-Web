@@ -91,14 +91,19 @@ const DEFAULT_VERSES = []
 
 let titlePuzzleHidden = []
 let titlePuzzleSlots = []
+let refPuzzleHidden = []
+let refPuzzleSlots = []
 let versePuzzleHidden = []
 let versePuzzleSlots = []
 let titleBankItems = []
+let refBankItems = []
 let verseBankItems = []
 let selectedTitleBankWord = ""
+let selectedRefBankWord = ""
 let selectedVerseBankWord = ""
 
 let titleWords = []
+let refWords = []
 let verseWords = []
 
 let verses = []
@@ -180,13 +185,21 @@ const practiceVerseTitle = document.getElementById("practiceVerseTitle")
 
 const titleAnswerRow = document.getElementById("titleAnswerRow")
 const titleAnswer = document.getElementById("titleAnswer")
+const refAnswerRow = document.getElementById("refAnswerRow")
+const refAnswer = document.getElementById("refAnswer")
+const practiceVersion = document.getElementById("practiceVersion")
 
 const titleDragSection = document.getElementById("titleDragSection")
 const titleBlankLine = document.getElementById("titleBlankLine")
 const titleWordBank = document.getElementById("titleWordBank")
+const refDragSection = document.getElementById("refDragSection")
+const refBlankLine = document.getElementById("refBlankLine")
+const refWordBank = document.getElementById("refWordBank")
 
 const titleLettersSection = document.getElementById("titleLettersSection")
 const titleLettersGame = document.getElementById("titleLettersGame")
+const refLettersSection = document.getElementById("refLettersSection")
+const refLettersGame = document.getElementById("refLettersGame")
 const verseLettersGame = document.getElementById("verseLettersGame")
 
 const collectionSelect = document.getElementById("collectionSelect")
@@ -303,6 +316,7 @@ onAuthStateChanged(auth, async (user) => {
     verses = []
     selectedVerseId = ""
     titleWords = []
+    refWords = []
     verseWords = []
     collections = []
     groups = []
@@ -312,6 +326,7 @@ onAuthStateChanged(auth, async (user) => {
 
     answer.value = ""
     if (titleAnswer) titleAnswer.value = ""
+    if (refAnswer) refAnswer.value = ""
     result.textContent = ""
     result.className = "result"
 
@@ -388,6 +403,11 @@ function setTypingEnabled(enabled) {
 
   if (titleAnswer) {
     titleAnswer.disabled = !enabled
+  }
+
+  if (refAnswer) {
+    refAnswer.disabled = !enabled
+    refAnswer.placeholder = enabled ? "Example: John 3:16" : "Hide words first to type."
   }
 }
 
@@ -514,11 +534,15 @@ function loadVerse(id) {
 
   selectedVerseId = id
 
-  const fullRef = verse.version ? verse.ref + " (" + verse.version + ")" : verse.ref
-  practiceVerseTitle.textContent = fullRef
-
   titleWords = verse.title ? verse.title.split(/\s+/) : []
+  refWords = verse.ref ? verse.ref.split(/\s+/).filter(Boolean) : []
   verseWords = verse.text.split(/\s+/)
+
+  if (practiceVersion) {
+    practiceVersion.textContent = verse.version ? "Version: " + verse.version : ""
+  }
+
+  renderReferenceDisplay(false)
 
   if (practiceTitle) {
     practiceTitle.textContent = ""
@@ -531,6 +555,14 @@ function loadVerse(id) {
 
   if (titleAnswer) {
     titleAnswer.value = ""
+  }
+
+  if (refAnswer) {
+    refAnswer.value = ""
+  }
+
+  if (refAnswerRow) {
+    refAnswerRow.classList.toggle("isHidden", refWords.length === 0)
   }
 
   words = [...verseWords]
@@ -570,13 +602,16 @@ function revealOneWord() {
 function hideAllWords() {
   hiddenIndexes = words.map((word, index) => index)
   renderVerse()
+  renderReferenceDisplay(false)
   setTypingEnabled(true)
-  answer.focus()
+  if (refAnswer) refAnswer.focus()
+  else answer.focus()
 }
 
 function revealAllWords() {
   hiddenIndexes = []
   renderVerse()
+  renderReferenceDisplay(true)
   answer.focus()
 }
 
@@ -590,16 +625,35 @@ function toggleHideAll() {
   }
 }
 
+function renderReferenceDisplay(revealed) {
+  if (!practiceVerseTitle) return
+
+  if (refWords.length === 0) {
+    practiceVerseTitle.textContent = "No reference"
+    practiceVerseTitle.classList.remove("isHidden")
+    return
+  }
+
+  practiceVerseTitle.textContent = revealed
+    ? refWords.join(" ")
+    : refWords.map(() => "____").join(" ")
+  practiceVerseTitle.classList.remove("isHidden")
+}
+
 function resetTypeMode() {
   hiddenIndexes = words.map((word, index) => index)
   renderVerse()
+  renderReferenceDisplay(false)
   setTypingEnabled(true)
   answer.value = ""
   if (titleAnswer) titleAnswer.value = ""
+  if (refAnswer) refAnswer.value = ""
   result.textContent = ""
   result.className = "result"
 
-  if (titleAnswerRow && !titleAnswerRow.classList.contains("isHidden")) {
+  if (refAnswerRow && !refAnswerRow.classList.contains("isHidden") && refAnswer) {
+    refAnswer.focus()
+  } else if (titleAnswerRow && !titleAnswerRow.classList.contains("isHidden")) {
     titleAnswer.focus()
   } else {
     answer.focus()
@@ -660,13 +714,26 @@ function buildDragPuzzle() {
 
   titlePuzzleHidden = []
   titlePuzzleSlots = []
+  refPuzzleHidden = []
+  refPuzzleSlots = []
   versePuzzleHidden = []
   versePuzzleSlots = []
   titleBankItems = []
+  refBankItems = []
   verseBankItems = []
 
   selectedTitleBankWord = ""
+  selectedRefBankWord = ""
   selectedVerseBankWord = ""
+
+  refPuzzleHidden = refWords.map((word, index) => index)
+  refPuzzleSlots = refPuzzleHidden.map(index => ({
+    index,
+    expected: refWords[index],
+    filled: "",
+    itemId: ""
+  }))
+  refBankItems = makeBankItems(refPuzzleHidden, refWords, "ref")
 
   const titleIndexes = titleWords.map((word, index) => index)
   while (titlePuzzleHidden.length < titleHideCount && titleIndexes.length > 0) {
@@ -723,6 +790,73 @@ function updateDifficultyButtons() {
 function renderDragPuzzle() {
   blankLine.innerHTML = ""
   wordBank.innerHTML = ""
+
+  if (refDragSection) {
+    refDragSection.classList.toggle("isHidden", refWords.length === 0)
+  }
+
+  if (refBlankLine) refBlankLine.innerHTML = ""
+  if (refWordBank) refWordBank.innerHTML = ""
+
+  if (refWords.length > 0 && refBlankLine && refWordBank) {
+    const refHiddenSet = new Set(refPuzzleHidden)
+
+    for (let i = 0; i < refWords.length; i++) {
+      if (refHiddenSet.has(i)) {
+        const blank = document.createElement("span")
+        const slot = refPuzzleSlots.find(s => s.index === i)
+
+        blank.textContent = slot && slot.filled ? slot.filled : "_____"
+        blank.className = slot && slot.filled ? "blank filled" : "blank"
+
+        blank.addEventListener("click", () => {
+          const currentSlot = refPuzzleSlots.find(s => s.index === i)
+          if (!currentSlot) return
+
+          if (selectedRefBankWord) {
+            placeBankItemInSlot(refPuzzleSlots, refBankItems, i, selectedRefBankWord)
+            selectedRefBankWord = ""
+            renderDragPuzzle()
+            return
+          }
+
+          if (currentSlot.filled) {
+            clearSlot(refPuzzleSlots, refBankItems, i)
+            renderDragPuzzle()
+          }
+        })
+
+        refBlankLine.appendChild(blank)
+      } else {
+        const span = document.createElement("span")
+        span.textContent = refWords[i]
+        refBlankLine.appendChild(span)
+      }
+
+      refBlankLine.appendChild(document.createTextNode(" "))
+    }
+
+    const refAvailableBankItems = refBankItems
+      .filter(item => item.placedIn === null)
+      .sort(() => Math.random() - 0.5)
+
+    refAvailableBankItems.forEach(item => {
+      const pill = document.createElement("span")
+      pill.className = "pill"
+      pill.textContent = item.text
+      if (selectedRefBankWord === item.id) {
+        pill.classList.add("active")
+      }
+
+      pill.addEventListener("click", () => {
+        selectedRefBankWord = item.id
+        refWordBank.querySelectorAll(".pill").forEach(p => p.classList.remove("active"))
+        pill.classList.add("active")
+      })
+
+      refWordBank.appendChild(pill)
+    })
+  }
 
   if (titleDragSection) {
     titleDragSection.classList.toggle("isHidden", titleWords.length === 0)
@@ -851,8 +985,16 @@ function renderDragPuzzle() {
 }
 
 function renderLettersGame() {
+  if (refLettersSection) {
+    refLettersSection.classList.toggle("isHidden", refWords.length === 0)
+  }
+
   if (titleLettersSection) {
     titleLettersSection.classList.toggle("isHidden", titleWords.length === 0)
+  }
+
+  if (refLettersGame) {
+    refLettersGame.innerHTML = ""
   }
 
   if (titleLettersGame) {
@@ -861,6 +1003,10 @@ function renderLettersGame() {
 
   if (verseLettersGame) {
     verseLettersGame.innerHTML = ""
+  }
+
+  if (refWords.length > 0 && refLettersGame) {
+    renderLetterSection(refWords, refLettersGame, "ref")
   }
 
   if (titleWords.length > 0 && titleLettersGame) {
@@ -872,6 +1018,7 @@ function renderLettersGame() {
   }
 
   const firstBox =
+    document.querySelector('#refLettersGame .letterBox:not(.isHidden)') ||
     document.querySelector('#titleLettersGame .letterBox:not(.isHidden)') ||
     document.querySelector('#verseLettersGame .letterBox:not(.isHidden)')
 
@@ -956,187 +1103,114 @@ function renderLetterSection(sourceWords, container, sectionType) {
 
 function moveToNextLetterBox() {
   const next =
+    document.querySelector('#refLettersGame .letterBox:not(.isHidden)') ||
     document.querySelector('#titleLettersGame .letterBox:not(.isHidden)') ||
     document.querySelector('#verseLettersGame .letterBox:not(.isHidden)')
 
   if (next) next.focus()
 }
 
+function countMatchingWords(expectedWords, userWords) {
+  let correct = 0
+  for (let i = 0; i < expectedWords.length; i++) {
+    if ((userWords[i] || "") === expectedWords[i]) correct += 1
+  }
+  return correct
+}
+
+function showPracticeScore(parts) {
+  const shown = parts.filter(part => part.total > 0)
+  const total = shown.reduce((sum, part) => sum + part.total, 0)
+  const correct = shown.reduce((sum, part) => sum + part.correct, 0)
+  const percent = total === 0 ? 0 : Math.round((correct / total) * 100)
+  const detail = shown.map(part => part.label + ": " + part.correct + "/" + part.total).join(". ")
+
+  result.textContent = (detail ? detail + ". " : "") + "Total: " + correct + "/" + total + ". " + percent + "%."
+  result.className = percent === 100 ? "result good" : "result bad"
+
+  if (percent === 100) {
+    renderReferenceDisplay(true)
+    saveScore()
+  }
+}
+
 function checkTypeMode() {
+  const expectedRefWords = refWords.map(word => normalize(word)).filter(Boolean)
   const expectedTitleWords = titleWords.map(word => normalize(word)).filter(Boolean)
   const expectedVerseWords = verseWords.map(word => normalize(word.replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, ""))).filter(Boolean)
 
+  const userRefWords = normalize(refAnswer ? refAnswer.value : "").split(" ").filter(Boolean)
   const userTitleWords = normalize(titleAnswer ? titleAnswer.value : "").split(" ").filter(Boolean)
   const userVerseWords = normalize(answer.value).split(" ").filter(Boolean)
 
-  let correctTitle = 0
-  let correctVerse = 0
+  showPracticeScore([
+    { label: "Reference", correct: countMatchingWords(expectedRefWords, userRefWords), total: expectedRefWords.length },
+    { label: "Title", correct: countMatchingWords(expectedTitleWords, userTitleWords), total: expectedTitleWords.length },
+    { label: "Verse", correct: countMatchingWords(expectedVerseWords, userVerseWords), total: expectedVerseWords.length }
+  ])
+}
 
-  for (let i = 0; i < expectedTitleWords.length; i++) {
-    if ((userTitleWords[i] || "") === expectedTitleWords[i]) {
-      correctTitle += 1
-    }
-  }
-
-  for (let i = 0; i < expectedVerseWords.length; i++) {
-    if ((userVerseWords[i] || "") === expectedVerseWords[i]) {
-      correctVerse += 1
-    }
-  }
-
-  const total = expectedTitleWords.length + expectedVerseWords.length
-  const correct = correctTitle + correctVerse
-  const percent = total === 0 ? 0 : Math.round((correct / total) * 100)
-
-  if (expectedTitleWords.length > 0) {
-    result.textContent =
-      "Title: " + correctTitle + "/" + expectedTitleWords.length +
-      ". Verse: " + correctVerse + "/" + expectedVerseWords.length +
-      ". Total: " + correct + "/" + total + ". " + percent + "%."
-  } else {
-    result.textContent =
-      "Verse: " + correctVerse + "/" + expectedVerseWords.length +
-      ". Total: " + correct + "/" + total + ". " + percent + "%."
-  }
-
-  result.className = percent === 100 ? "result good" : "result bad"
-
-  if (percent === 100) {
-    saveScore()
-  }
+function countFilledSlots(slots) {
+  let correct = 0
+  slots.forEach(slot => {
+    if (normalize(slot.filled || "") === normalize(slot.expected || "")) correct += 1
+  })
+  return correct
 }
 
 function checkDragMode() {
-  let titleCorrect = 0
-  let titleFilled = 0
-  let titleTotal = titlePuzzleSlots.length
+  showPracticeScore([
+    { label: "Reference", correct: countFilledSlots(refPuzzleSlots), total: refPuzzleSlots.length },
+    { label: "Title", correct: countFilledSlots(titlePuzzleSlots), total: titlePuzzleSlots.length },
+    { label: "Verse", correct: countFilledSlots(versePuzzleSlots), total: versePuzzleSlots.length }
+  ])
+}
 
-  titlePuzzleSlots.forEach(slot => {
-    if (slot.filled && slot.filled.trim() !== "") titleFilled += 1
-    if (normalize(slot.filled || "") === normalize(slot.expected || "")) titleCorrect += 1
+function scoreLetterSection(container, sourceWords) {
+  let correct = 0
+  let total = 0
+  if (!container) return { correct, total }
+
+  container.querySelectorAll(".letterWord").forEach(wrapper => {
+    const input = wrapper.querySelector(".letterBox")
+    const fullWord = wrapper.querySelector(".fullWord")
+    if (!input || !fullWord) return
+
+    total += 1
+
+    if (!fullWord.classList.contains("isHidden")) {
+      correct += 1
+      return
+    }
+
+    const index = Number(input.dataset.index)
+    const cleanWord = sourceWords[index].replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, "")
+    const expected = cleanWord.charAt(0).toLowerCase()
+    const user = input.value.trim().toLowerCase()
+
+    if (user === expected) {
+      correct += 1
+      input.classList.add("isHidden")
+      fullWord.classList.remove("isHidden")
+      input.classList.remove("wrong")
+    } else if (user) {
+      input.classList.add("wrong")
+    }
   })
 
-  let verseCorrect = 0
-  let verseFilled = 0
-  let verseTotal = versePuzzleSlots.length
-
-  versePuzzleSlots.forEach(slot => {
-    if (slot.filled && slot.filled.trim() !== "") verseFilled += 1
-    if (normalize(slot.filled || "") === normalize(slot.expected || "")) verseCorrect += 1
-  })
-
-  const total = titleTotal + verseTotal
-  const correct = titleCorrect + verseCorrect
-  const percent = total === 0 ? 0 : Math.round((correct / total) * 100)
-
-  if (titleTotal > 0) {
-    result.textContent =
-      "Title: " + titleCorrect + "/" + titleTotal +
-      ". Verse: " + verseCorrect + "/" + verseTotal +
-      ". Total: " + correct + "/" + total + ". " + percent + "%."
-  } else {
-    result.textContent =
-      "Verse: " + verseCorrect + "/" + verseTotal +
-      ". Total: " + correct + "/" + total + ". " + percent + "%."
-  }
-
-  result.className = percent === 100 ? "result good" : "result bad"
-
-  if (percent === 100) {
-    saveScore()
-  }
+  return { correct, total }
 }
 
 function checkLettersGame() {
-  let titleCorrect = 0
-  let titleTotal = 0
-  let verseCorrect = 0
-  let verseTotal = 0
+  const refScore = scoreLetterSection(refLettersGame, refWords)
+  const titleScore = scoreLetterSection(titleLettersGame, titleWords)
+  const verseScore = scoreLetterSection(verseLettersGame, verseWords)
 
-  if (titleLettersGame) {
-    const titleWrappers = titleLettersGame.querySelectorAll(".letterWord")
-
-    titleWrappers.forEach(wrapper => {
-      const input = wrapper.querySelector(".letterBox")
-      const fullWord = wrapper.querySelector(".fullWord")
-
-      if (!input || !fullWord) return
-
-      titleTotal += 1
-
-      if (!fullWord.classList.contains("isHidden")) {
-        titleCorrect += 1
-        return
-      }
-
-      const index = Number(input.dataset.index)
-      const cleanWord = titleWords[index].replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, "")
-      const expected = cleanWord.charAt(0).toLowerCase()
-      const user = input.value.trim().toLowerCase()
-
-      if (user === expected) {
-        titleCorrect += 1
-        input.classList.add("isHidden")
-        fullWord.classList.remove("isHidden")
-        input.classList.remove("wrong")
-      } else if (user) {
-        input.classList.add("wrong")
-      }
-    })
-  }
-
-  if (verseLettersGame) {
-    const verseWrappers = verseLettersGame.querySelectorAll(".letterWord")
-
-    verseWrappers.forEach(wrapper => {
-      const input = wrapper.querySelector(".letterBox")
-      const fullWord = wrapper.querySelector(".fullWord")
-
-      if (!input || !fullWord) return
-
-      verseTotal += 1
-
-      if (!fullWord.classList.contains("isHidden")) {
-        verseCorrect += 1
-        return
-      }
-
-      const index = Number(input.dataset.index)
-      const cleanWord = verseWords[index].replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, "")
-      const expected = cleanWord.charAt(0).toLowerCase()
-      const user = input.value.trim().toLowerCase()
-
-      if (user === expected) {
-        verseCorrect += 1
-        input.classList.add("isHidden")
-        fullWord.classList.remove("isHidden")
-        input.classList.remove("wrong")
-      } else if (user) {
-        input.classList.add("wrong")
-      }
-    })
-  }
-
-  const total = titleTotal + verseTotal
-  const correct = titleCorrect + verseCorrect
-  const percent = total === 0 ? 0 : Math.round((correct / total) * 100)
-
-  if (titleTotal > 0) {
-    result.textContent =
-      "Title: " + titleCorrect + "/" + titleTotal +
-      ". Verse: " + verseCorrect + "/" + verseTotal +
-      ". Total: " + correct + "/" + total + ". " + percent + "%."
-  } else {
-    result.textContent =
-      "Verse: " + verseCorrect + "/" + verseTotal +
-      ". Total: " + correct + "/" + total + ". " + percent + "%."
-  }
-
-  result.className = percent === 100 ? "result good" : "result bad"
-
-  if (percent === 100) {
-    saveScore()
-  }
+  showPracticeScore([
+    { label: "Reference", correct: refScore.correct, total: refScore.total },
+    { label: "Title", correct: titleScore.correct, total: titleScore.total },
+    { label: "Verse", correct: verseScore.correct, total: verseScore.total }
+  ])
 }
 
 function checkCurrentMode() {
@@ -1154,8 +1228,20 @@ function checkCurrentMode() {
 }
 
 function revealOneBlank() {
+  const emptyRef = refPuzzleSlots.filter(slot => !slot.filled)
   const emptyTitle = titlePuzzleSlots.filter(slot => !slot.filled)
   const emptyVerse = versePuzzleSlots.filter(slot => !slot.filled)
+
+  if (emptyRef.length > 0) {
+    const pick = emptyRef[Math.floor(Math.random() * emptyRef.length)]
+    const item = refBankItems.find(bankItem => bankItem.homeIndex === pick.index && bankItem.placedIn === null)
+    if (item) {
+      placeBankItemInSlot(refPuzzleSlots, refBankItems, pick.index, item.id)
+    }
+    selectedRefBankWord = ""
+    renderDragPuzzle()
+    return
+  }
 
   if (emptyTitle.length > 0) {
     const pick = emptyTitle[Math.floor(Math.random() * emptyTitle.length)]
@@ -1180,6 +1266,26 @@ function revealOneBlank() {
 }
 
 function revealOneLetterBox() {
+  const refUnfinished = refLettersGame
+    ? Array.from(refLettersGame.querySelectorAll(".letterWord")).filter(wrapper => {
+      const input = wrapper.querySelector(".letterBox")
+      const fullWord = wrapper.querySelector(".fullWord")
+      return input && fullWord && fullWord.classList.contains("isHidden")
+    })
+    : []
+
+  if (refUnfinished.length > 0) {
+    const pick = refUnfinished[Math.floor(Math.random() * refUnfinished.length)]
+    const input = pick.querySelector(".letterBox")
+    const fullWord = pick.querySelector(".fullWord")
+
+    input.classList.add("isHidden")
+    fullWord.classList.remove("isHidden")
+    input.classList.remove("wrong")
+    moveToNextLetterBox()
+    return
+  }
+
   const titleUnfinished = titleLettersGame
     ? Array.from(titleLettersGame.querySelectorAll(".letterWord")).filter(wrapper => {
       const input = wrapper.querySelector(".letterBox")
@@ -1231,6 +1337,16 @@ function giveHint() {
     return
   }
 
+  const typedRef = normalize(refAnswer ? refAnswer.value : "").split(" ").filter(Boolean)
+  const expectedRef = refWords.map(word => normalize(word)).filter(Boolean)
+  const nextMissing = expectedRef.findIndex((word, index) => typedRef[index] !== word)
+
+  if (nextMissing !== -1 && refAnswer) {
+    typedRef[nextMissing] = refWords[nextMissing]
+    refAnswer.value = typedRef.filter(Boolean).join(" ")
+    return
+  }
+
   revealOneWord()
 }
 
@@ -1265,6 +1381,10 @@ function updatePracticeUI() {
 
   if (titleAnswerRow) {
     titleAnswerRow.classList.toggle("isHidden", isDrag || isLetters || titleWords.length === 0)
+  }
+
+  if (refAnswerRow) {
+    refAnswerRow.classList.toggle("isHidden", isDrag || isLetters || refWords.length === 0)
   }
 }
 
