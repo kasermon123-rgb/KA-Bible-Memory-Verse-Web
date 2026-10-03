@@ -613,6 +613,31 @@ textarea:disabled {
   font-size: 16px;
 }
 
+.dragHandle {
+  display: none;
+  cursor: grab;
+  color: var(--muted);
+  user-select: none;
+  touch-action: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  min-height: 32px;
+  font-size: 16px;
+}
+
+.customItem.dragging {
+  opacity: 0.55;
+  border: 2px dashed var(--accent);
+  pointer-events: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .dragHandle {
+    display: inline-flex;
+  }
+}
+
 @media (max-width: 640px) {
   #libraryGrid {
     grid-template-columns: 1fr;

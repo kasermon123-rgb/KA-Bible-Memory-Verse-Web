@@ -745,12 +745,20 @@ function placeBankItemInSlot(slots, bankItems, slotIndex, itemId) {
 
 function blankHideCount(length, ratio) {
   if (!length) return 0
-  const caps = { easy: 3, medium: 5, hard: 8 }
-  const cap = caps[tapDifficulty] || 3
-  return Math.min(length, cap, Math.max(1, Math.floor(length * ratio)))
+  if (tapDifficulty === "hard") return length
+  const caps = { easy: 4, medium: 8 }
+  const cap = caps[tapDifficulty] || 4
+  const minimum = tapDifficulty === "medium" ? 2 : 1
+  return Math.min(length, cap, Math.max(minimum, Math.floor(length * ratio)))
 }
 
-function visibleBankItems(bankItems, slots, limit = 4) {
+function optionCountForDifficulty() {
+  if (tapDifficulty === "hard") return 8
+  if (tapDifficulty === "medium") return 5
+  return 3
+}
+
+function visibleBankItems(bankItems, slots, limit = optionCountForDifficulty()) {
   const available = bankItems.filter(item => item.placedIn === null)
   if (available.length <= limit) return available.sort(() => Math.random() - 0.5)
 
@@ -1720,6 +1728,46 @@ function _renderLibraryNow() {
 
       reorder.appendChild(up)
       reorder.appendChild(down)
+
+      const handle = document.createElement("span")
+      handle.className = "dragHandle"
+      handle.textContent = "☰"
+      handle.title = "Drag to reorder"
+      handle.addEventListener("pointerdown", (event) => {
+        if (event.pointerType !== "mouse") return
+        event.preventDefault()
+        event.stopPropagation()
+        draggedVerseId = verse.id
+        row.classList.add("dragging")
+        if (handle.setPointerCapture) handle.setPointerCapture(event.pointerId)
+
+        const moveRow = (ev) => {
+          ev.preventDefault()
+          const under = document.elementFromPoint(ev.clientX, ev.clientY)
+          const target = under && under.closest ? under.closest(".customItem") : null
+          if (!target || target === row || !libraryGrid.contains(target)) return
+          const rect = target.getBoundingClientRect()
+          const after = ev.clientY > rect.top + rect.height / 2
+          if (after) target.after(row)
+          else target.before(row)
+        }
+
+        const finish = async () => {
+          handle.removeEventListener("pointermove", moveRow)
+          handle.removeEventListener("pointerup", finish)
+          handle.removeEventListener("pointercancel", finish)
+          row.classList.remove("dragging")
+          const ids = Array.from(libraryGrid.querySelectorAll(".customItem")).map(item => item.dataset.id)
+          applyVisibleVerseOrder(ids)
+          draggedVerseId = null
+          await saveVersesOrderToCloud()
+        }
+
+        handle.addEventListener("pointermove", moveRow)
+        handle.addEventListener("pointerup", finish)
+        handle.addEventListener("pointercancel", finish)
+      })
+      reorder.appendChild(handle)
     }
 
     const actionBtns = document.createElement("div")
