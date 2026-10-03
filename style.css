@@ -296,13 +296,11 @@ textarea:disabled {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px;
+  gap: 10px;
+  padding: 16px;
   border: 1px solid var(--line);
   border-radius: 16px;
   background: var(--field);
-  min-height: 148px;
 }
 
 .customItem .meta {
@@ -573,69 +571,50 @@ textarea:disabled {
   padding: 10px 0;
 }
 
-/* Drag and Drop styling */
-.customItem[draggable="true"] {
-  cursor: grab;
-}
-
-.customItem.dragging {
-  opacity: 0.55;
-  border: 2px dashed var(--accent);
-  pointer-events: none;
-}
-
 .cardActions {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
 }
 
 .cardActions .controls {
   margin: 0;
 }
 
-.cardActions button,
-.dragHandle {
-  padding: 7px 10px;
-  font-size: 13px;
+.cardActions button {
+  border: none;
+  background: transparent;
+  padding: 6px 2px;
+  min-height: 32px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.cardActions button:hover {
+  background: transparent;
+  color: var(--accent);
+}
+
+.cardActions .danger:hover {
+  color: var(--bad);
 }
 
 .reorderBtns {
   display: flex;
-  flex-direction: row;
   align-items: center;
-  gap: 6px;
+  gap: 14px;
 }
 
-.reorderBtn,
-.dragHandle {
-  min-width: 34px;
-  min-height: 32px;
-  padding: 4px 8px;
-  line-height: 1;
-}
-
-.dragHandle {
-  cursor: grab;
-  color: var(--muted);
-  user-select: none;
-  touch-action: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--field);
+.reorderBtn {
+  min-width: 28px;
+  font-size: 16px;
 }
 
 @media (max-width: 640px) {
   #libraryGrid {
     grid-template-columns: 1fr;
-  }
-
-  .customItem {
-    min-height: 0;
   }
 }

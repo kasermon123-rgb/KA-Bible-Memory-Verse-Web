@@ -1718,47 +1718,8 @@ function _renderLibraryNow() {
         moveVisibleVerse(verse.id, 1)
       })
 
-      const handle = document.createElement("span")
-      handle.className = "dragHandle"
-      handle.textContent = "☰"
-      handle.title = "Hold and drag to reorder"
-      handle.addEventListener("pointerdown", (event) => {
-        event.preventDefault()
-        event.stopPropagation()
-        draggedVerseId = verse.id
-        row.classList.add("dragging")
-        if (handle.setPointerCapture) handle.setPointerCapture(event.pointerId)
-
-        const moveRow = (ev) => {
-          ev.preventDefault()
-          const under = document.elementFromPoint(ev.clientX, ev.clientY)
-          const target = under && under.closest ? under.closest(".customItem") : null
-          if (!target || target === row || !libraryGrid.contains(target)) return
-          const rect = target.getBoundingClientRect()
-          const after = ev.clientY > rect.top + rect.height / 2
-          if (after) target.after(row)
-          else target.before(row)
-        }
-
-        const finish = async () => {
-          handle.removeEventListener("pointermove", moveRow)
-          handle.removeEventListener("pointerup", finish)
-          handle.removeEventListener("pointercancel", finish)
-          row.classList.remove("dragging")
-          const ids = Array.from(libraryGrid.querySelectorAll(".customItem")).map(item => item.dataset.id)
-          applyVisibleVerseOrder(ids)
-          draggedVerseId = null
-          await saveVersesOrderToCloud()
-        }
-
-        handle.addEventListener("pointermove", moveRow)
-        handle.addEventListener("pointerup", finish)
-        handle.addEventListener("pointercancel", finish)
-      })
-
       reorder.appendChild(up)
       reorder.appendChild(down)
-      reorder.appendChild(handle)
     }
 
     const actionBtns = document.createElement("div")
