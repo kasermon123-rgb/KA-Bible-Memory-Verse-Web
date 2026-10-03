@@ -1733,40 +1733,43 @@ function _renderLibraryNow() {
       handle.className = "dragHandle"
       handle.textContent = "☰"
       handle.title = "Drag to reorder"
-      handle.addEventListener("pointerdown", (event) => {
-        if (event.pointerType !== "mouse") return
-        event.preventDefault()
-        event.stopPropagation()
+      handle.draggable = true
+
+      handle.addEventListener("dragstart", (event) => {
         draggedVerseId = verse.id
         row.classList.add("dragging")
-        if (handle.setPointerCapture) handle.setPointerCapture(event.pointerId)
-
-        const moveRow = (ev) => {
-          ev.preventDefault()
-          const under = document.elementFromPoint(ev.clientX, ev.clientY)
-          const target = under && under.closest ? under.closest(".customItem") : null
-          if (!target || target === row || !libraryGrid.contains(target)) return
-          const rect = target.getBoundingClientRect()
-          const after = ev.clientY > rect.top + rect.height / 2
-          if (after) target.after(row)
-          else target.before(row)
-        }
-
-        const finish = async () => {
-          handle.removeEventListener("pointermove", moveRow)
-          handle.removeEventListener("pointerup", finish)
-          handle.removeEventListener("pointercancel", finish)
-          row.classList.remove("dragging")
-          const ids = Array.from(libraryGrid.querySelectorAll(".customItem")).map(item => item.dataset.id)
-          applyVisibleVerseOrder(ids)
-          draggedVerseId = null
-          await saveVersesOrderToCloud()
-        }
-
-        handle.addEventListener("pointermove", moveRow)
-        handle.addEventListener("pointerup", finish)
-        handle.addEventListener("pointercancel", finish)
+        event.dataTransfer.effectAllowed = "move"
+        event.dataTransfer.setData("text/plain", verse.id)
       })
+
+      handle.addEventListener("dragend", () => {
+        row.classList.remove("dragging")
+        draggedVerseId = null
+      })
+
+      row.addEventListener("dragover", (event) => {
+        if (!draggedVerseId) return
+        event.preventDefault()
+        event.dataTransfer.dropEffect = "move"
+      })
+
+      row.addEventListener("drop", async (event) => {
+        event.preventDefault()
+        row.classList.remove("dragging")
+        if (!draggedVerseId || draggedVerseId === verse.id) return
+
+        const fromIndex = verses.findIndex(item => item.id === draggedVerseId)
+        const toIndex = verses.findIndex(item => item.id === verse.id)
+        if (fromIndex === -1 || toIndex === -1) return
+
+        const [movedVerse] = verses.splice(fromIndex, 1)
+        verses.splice(toIndex, 0, movedVerse)
+        verses.forEach((item, index) => { item.order = index })
+        draggedVerseId = null
+        renderLibrary()
+        await saveVersesOrderToCloud()
+      })
+
       reorder.appendChild(handle)
     }
 
