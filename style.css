@@ -288,24 +288,32 @@ textarea:disabled {
 
 #libraryGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 12px;
 }
 
 .customItem {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   justify-content: space-between;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 12px;
+  padding: 14px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 16px;
   background: var(--field);
+  min-height: 148px;
 }
 
 .customItem .meta {
   display: grid;
   gap: 4px;
+  min-width: 0;
+}
+
+.verseTitle {
+  font-weight: 650;
+  line-height: 1.35;
 }
 
 .customItem small {
@@ -576,34 +584,58 @@ textarea:disabled {
   pointer-events: none;
 }
 
-.verseTitleLine {
+.cardActions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cardActions .controls {
+  margin: 0;
+}
+
+.cardActions button,
+.dragHandle {
+  padding: 7px 10px;
+  font-size: 13px;
 }
 
 .reorderBtns {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
 }
 
-.reorderBtn {
-  min-width: 36px;
-  min-height: 28px;
-  padding: 2px 0;
+.reorderBtn,
+.dragHandle {
+  min-width: 34px;
+  min-height: 32px;
+  padding: 4px 8px;
   line-height: 1;
 }
 
 .dragHandle {
   cursor: grab;
-  font-size: 22px;
   color: var(--muted);
   user-select: none;
   touch-action: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 44px;
-  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--field);
+}
+
+@media (max-width: 640px) {
+  #libraryGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .customItem {
+    min-height: 0;
+  }
 }

@@ -1677,12 +1677,25 @@ function _renderLibraryNow() {
     meta.className = "meta"
 
     const title = document.createElement("div")
-    title.className = "verseTitleLine"
+    title.className = "verseTitle"
+    title.textContent = verse.title || verse.ref || "Untitled"
+
+    const small = document.createElement("small")
+    small.textContent =
+      (verse.ref || "") +
+      (verse.version ? " (" + verse.version + ")" : "") +
+      (verse.group ? " · " + verse.group : "")
+
+    meta.appendChild(title)
+    meta.appendChild(small)
+
+    const actions = document.createElement("div")
+    actions.className = "cardActions"
+
+    const reorder = document.createElement("div")
+    reorder.className = "reorderBtns"
 
     if (selectedSortMode === "custom") {
-      const reorder = document.createElement("div")
-      reorder.className = "reorderBtns"
-
       const up = document.createElement("button")
       up.type = "button"
       up.className = "reorderBtn"
@@ -1705,16 +1718,10 @@ function _renderLibraryNow() {
         moveVisibleVerse(verse.id, 1)
       })
 
-      reorder.appendChild(up)
-      reorder.appendChild(down)
-      title.appendChild(reorder)
-
       const handle = document.createElement("span")
       handle.className = "dragHandle"
       handle.textContent = "☰"
       handle.title = "Hold and drag to reorder"
-      title.appendChild(handle)
-
       handle.addEventListener("pointerdown", (event) => {
         event.preventDefault()
         event.stopPropagation()
@@ -1748,33 +1755,25 @@ function _renderLibraryNow() {
         handle.addEventListener("pointerup", finish)
         handle.addEventListener("pointercancel", finish)
       })
+
+      reorder.appendChild(up)
+      reorder.appendChild(down)
+      reorder.appendChild(handle)
     }
 
-    const titleText = document.createTextNode(verse.title || verse.ref || "Untitled")
-    title.appendChild(titleText)
-
-    const small = document.createElement("small")
-    small.textContent =
-      (verse.ref || "") +
-      (verse.version ? " (" + verse.version + ")" : "") +
-      (verse.group ? " • " + verse.group : "")
-
-    meta.appendChild(title)
-    meta.appendChild(small)
-
-    const actions = document.createElement("div")
-    actions.className = "controls"
+    const actionBtns = document.createElement("div")
+    actionBtns.className = "controls"
 
     const playBtn = document.createElement("button")
     playBtn.type = "button"
-    playBtn.textContent = "Play 📖"
+    playBtn.textContent = "Play"
     playBtn.addEventListener("click", () => {
       openGamePicker(verse.id)
     })
 
     const moveBtn = document.createElement("button")
     moveBtn.type = "button"
-    moveBtn.textContent = "Move 📁"
+    moveBtn.textContent = "Move"
     moveBtn.addEventListener("click", () => {
       openMoveVerseModal(verse)
     })
@@ -1782,19 +1781,22 @@ function _renderLibraryNow() {
     const deleteBtn = document.createElement("button")
     deleteBtn.type = "button"
     deleteBtn.className = "danger"
-    deleteBtn.textContent = "Delete 🗑️"
+    deleteBtn.textContent = "Delete"
     deleteBtn.addEventListener("click", () => {
       confirmDelete(verse.id, row)
     })
 
-    actions.appendChild(playBtn)
-    actions.appendChild(moveBtn)
-    actions.appendChild(deleteBtn)
+    actionBtns.appendChild(playBtn)
+    actionBtns.appendChild(moveBtn)
+    actionBtns.appendChild(deleteBtn)
+    actions.appendChild(reorder)
+    actions.appendChild(actionBtns)
 
     row.appendChild(meta)
     row.appendChild(actions)
 
     libraryGrid.appendChild(row)
+
   })
 }
 
