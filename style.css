@@ -338,6 +338,11 @@ textarea:disabled {
   background: var(--accent-soft);
 }
 
+.blank.active {
+  border-color: var(--accent);
+  border-style: solid;
+}
+
 .pill {
   display: inline-flex;
   align-items: center;
@@ -572,8 +577,9 @@ textarea:disabled {
 
 .dragHandle {
   cursor: grab;
-  font-size: 18px;
+  font-size: 20px;
   color: var(--muted);
   user-select: none;
-  padding-right: 8px;
+  touch-action: none;
+  padding: 8px 10px 8px 0;
 }

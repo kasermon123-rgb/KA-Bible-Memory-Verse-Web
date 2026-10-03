@@ -154,6 +154,7 @@
                             <!-- Hard difficulty button -->
                             <button type="button" id="difficultyHard" class="difficultyBtn">Hard</button>
                         </div>
+                        <div class="stats">Harder levels hide more words. Only a few choices show at a time.</div>
                     </div>
 
                     <!-- Reference blank-filling section. -->
@@ -358,7 +359,7 @@
                 <div class="row">
                     <label for="sortSelect">Sort Verses By</label>
                     <select id="sortSelect">
-                        <option value="custom">Manual (Drag & Drop)</option>
+                        <option value="custom">Manual (drag the ☰ handle)</option>
                         <option value="titleAsc">Title (A → Z)</option>
                         <option value="titleDesc">Title (Z → A)</option>
                         <option value="bibleAsc">Bible Order (Genesis → Revelation)</option>
@@ -570,9 +571,7 @@
             </div>
         </div>
 
-        <footer class="foot">
-            Saved in your account
-        </footer>
+        <footer class="foot" id="saveFoot">Not signed in. Verses stay in this browser until you clear site data.</footer>
 
     </main>
 
