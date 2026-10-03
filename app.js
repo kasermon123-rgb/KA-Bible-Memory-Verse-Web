@@ -1673,63 +1673,54 @@ function _renderLibraryNow() {
     row.className = "customItem"
     row.dataset.id = verse.id
 
-    if (selectedSortMode === "custom") {
-      row.draggable = true
-
-      row.addEventListener("dragstart", (e) => {
-        draggedVerseId = verse.id
-        row.classList.add("dragging")
-        e.dataTransfer.effectAllowed = "move"
-      })
-
-      row.addEventListener("dragend", () => {
-        row.classList.remove("dragging")
-        draggedVerseId = null
-      })
-
-      row.addEventListener("dragover", (e) => {
-        e.preventDefault()
-        e.dataTransfer.dropEffect = "move"
-      })
-
-      row.addEventListener("drop", async (e) => {
-        e.preventDefault()
-        if (!draggedVerseId || draggedVerseId === verse.id) return
-
-        const fromIndex = verses.findIndex(v => v.id === draggedVerseId)
-        const toIndex = verses.findIndex(v => v.id === verse.id)
-
-        if (fromIndex !== -1 && toIndex !== -1) {
-          const [movedVerse] = verses.splice(fromIndex, 1)
-          verses.splice(toIndex, 0, movedVerse)
-
-          verses.forEach((v, idx) => { v.order = idx })
-
-          renderLibrary()
-          await saveVersesOrderToCloud()
-        }
-      })
-    }
-
     const meta = document.createElement("div")
     meta.className = "meta"
 
     const title = document.createElement("div")
+    title.className = "verseTitleLine"
 
     if (selectedSortMode === "custom") {
+      const reorder = document.createElement("div")
+      reorder.className = "reorderBtns"
+
+      const up = document.createElement("button")
+      up.type = "button"
+      up.className = "reorderBtn"
+      up.textContent = "↑"
+      up.title = "Move up"
+      up.addEventListener("click", (event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        moveVisibleVerse(verse.id, -1)
+      })
+
+      const down = document.createElement("button")
+      down.type = "button"
+      down.className = "reorderBtn"
+      down.textContent = "↓"
+      down.title = "Move down"
+      down.addEventListener("click", (event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        moveVisibleVerse(verse.id, 1)
+      })
+
+      reorder.appendChild(up)
+      reorder.appendChild(down)
+      title.appendChild(reorder)
+
       const handle = document.createElement("span")
       handle.className = "dragHandle"
-      handle.textContent = "☰ "
-      handle.title = "Drag to reorder"
+      handle.textContent = "☰"
+      handle.title = "Hold and drag to reorder"
       title.appendChild(handle)
 
       handle.addEventListener("pointerdown", (event) => {
-        if (event.pointerType === "mouse") return
         event.preventDefault()
         event.stopPropagation()
         draggedVerseId = verse.id
         row.classList.add("dragging")
-        handle.setPointerCapture(event.pointerId)
+        if (handle.setPointerCapture) handle.setPointerCapture(event.pointerId)
 
         const moveRow = (ev) => {
           ev.preventDefault()
@@ -1807,6 +1798,19 @@ function _renderLibraryNow() {
   })
 }
 
+
+
+async function moveVisibleVerse(id, direction) {
+  const ids = Array.from(libraryGrid.querySelectorAll(".customItem")).map(item => item.dataset.id)
+  const index = ids.indexOf(id)
+  const next = index + direction
+  if (index < 0 || next < 0 || next >= ids.length) return
+  const [moved] = ids.splice(index, 1)
+  ids.splice(next, 0, moved)
+  applyVisibleVerseOrder(ids)
+  renderLibrary()
+  await saveVersesOrderToCloud()
+}
 
 function applyVisibleVerseOrder(ids) {
   const idSet = new Set(ids)
