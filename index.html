@@ -55,7 +55,7 @@
                 <div class="tabs">
 
                     <!-- Button to open the Library page -->
-                    <button type="button" id="tabToday" class="tab active">Today</button>
+                    <button type="button" id="tabToday" class="tab active">Planner</button>
                     <button type="button" id="tabLibrary" class="tab">Library</button>
                     <button type="button" id="tabAdd" class="tab">Add</button>
 
@@ -272,9 +272,16 @@
         <section id="pageToday">
             <section class="card todayPlan" id="todayPlan">
                 <div class="progressTop">
-                    <strong id="planTitle">Today</strong>
+                    <strong id="planTitle">Planner</strong>
+                    <div class="planNav">
+                        <button type="button" id="planPrev" aria-label="Previous month">‹</button>
+                        <button type="button" id="planNext" aria-label="Next month">›</button>
+                        <label class="calendarBtn" aria-label="Pick a date">📅
+                            <input id="planDate" type="date">
+                        </label>
+                    </div>
                 </div>
-                <div class="weekRow" id="planWeek"></div>
+                <div class="calendarGrid" id="planWeek"></div>
                 <div id="planList"></div>
                 <div class="stats" id="planNote">Nothing here yet. Add verses from Library.</div>
                 <div class="controls">

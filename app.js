@@ -1931,7 +1931,8 @@ function renderGroupFilters() {
 
 
 const PLAN_KEY = "scriptureMemoryPlan"
-let planViewOffset = 0
+let planCursor = new Date()
+let planSelected = todayKey()
 
 function readPlan() {
   try {
@@ -1965,7 +1966,7 @@ function ensureWeekPlan() {
 
 function addVerseToPlan(id) {
   const plan = readPlan()
-  const key = dayKeyFromOffset(planViewOffset)
+  const key = planSelected
   const list = plan.days[key] || []
   if (!list.includes(id)) list.push(id)
   plan.days[key] = list
@@ -1973,30 +1974,57 @@ function addVerseToPlan(id) {
   showPage("today")
 }
 
+function shiftPlanMonth(amount) {
+  planCursor = new Date(planCursor.getFullYear(), planCursor.getMonth() + amount, 1)
+  renderTodayPlan(verses)
+}
+
 function renderTodayPlan(pool) {
   const planBox = document.getElementById("todayPlan")
   const week = document.getElementById("planWeek")
   const list = document.getElementById("planList")
   const note = document.getElementById("planNote")
-  const count = document.getElementById("planCount")
   const title = document.getElementById("planTitle")
+  const dateInput = document.getElementById("planDate")
   if (!planBox || !week || !list) return
   const plan = ensureWeekPlan()
-  if (count) count.textContent = String(plan.perDay)
-  const viewKey = dayKeyFromOffset(planViewOffset)
-  if (title) title.textContent = planViewOffset === 0 ? "Today" : viewKey
+  const viewKey = planSelected
+  const selectedDate = new Date(viewKey + "T00:00:00")
+  if (title) {
+    title.textContent = viewKey === todayKey()
+      ? "Today, " + selectedDate.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
+      : selectedDate.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
+  }
+  if (dateInput) dateInput.value = viewKey
 
   week.innerHTML = ""
-  for (let offset = 0; offset < 7; offset++) {
-    const date = new Date()
-    date.setDate(date.getDate() + offset)
+  const names = ["S", "M", "T", "W", "T", "F", "S"]
+  names.forEach(name => {
+    const label = document.createElement("div")
+    label.className = "calendarName"
+    label.textContent = name
+    week.appendChild(label)
+  })
+  const year = planCursor.getFullYear()
+  const month = planCursor.getMonth()
+  const first = new Date(year, month, 1)
+  const startPad = first.getDay()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  for (let i = 0; i < startPad; i++) {
+    const blank = document.createElement("div")
+    week.appendChild(blank)
+  }
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(year, month, day)
+    const key = todayKey(date)
     const button = document.createElement("button")
     button.type = "button"
-    button.className = "weekDay planDay" + (offset === planViewOffset ? " active" : "")
-    button.textContent = date.toLocaleDateString(undefined, { weekday: "narrow" })
+    button.className = "planDay" + (key === viewKey ? " active" : "") + (key === todayKey() ? " isToday" : "")
+    button.textContent = String(day)
+    if ((plan.days[key] || []).length) button.classList.add("hasPlan")
     button.addEventListener("click", () => {
-      planViewOffset = offset
-      renderLibrary()
+      planSelected = key
+      renderTodayPlan(verses)
     })
     week.appendChild(button)
   }
@@ -2031,8 +2059,8 @@ function renderTodayPlan(pool) {
     row.appendChild(actions)
     list.appendChild(row)
   })
-  if (!chosen.length) list.innerHTML = `<div class="result">No verses left for this day.</div>`
-  if (note) note.textContent = chosen.length ? "Remove takes a verse off this day. It stays in Library." : "Nothing for this day. Choose verses from Library."
+  if (!chosen.length) list.innerHTML = `<div class="result">No verses for this date.</div>`
+  if (note) note.textContent = "Pick a date, then add verses from Library."
 }
 
 function removePlanVerse(id, key) {
@@ -2045,7 +2073,9 @@ function removePlanVerse(id, key) {
 function movePlanVerseLater(id, key) {
   const plan = readPlan()
   plan.days[key] = (plan.days[key] || []).filter(item => item !== id)
-  const nextKey = dayKeyFromOffset(planViewOffset + 1)
+  const selected = new Date(planSelected + "T00:00:00")
+  selected.setDate(selected.getDate() + 1)
+  const nextKey = todayKey(selected)
   const next = plan.days[nextKey] || []
   if (!next.includes(id)) next.push(id)
   plan.days[nextKey] = next
@@ -3683,6 +3713,17 @@ btnLogout.addEventListener("click", logoutUser)
 tabLibrary.addEventListener("click", () => showPage("library"))
 if (tabAdd) tabAdd.addEventListener("click", () => showPage("add"))
 if (tabToday) tabToday.addEventListener("click", () => showPage("today"))
+const planPrev = document.getElementById("planPrev")
+const planNext = document.getElementById("planNext")
+const planDate = document.getElementById("planDate")
+if (planPrev) planPrev.addEventListener("click", () => shiftPlanMonth(-1))
+if (planNext) planNext.addEventListener("click", () => shiftPlanMonth(1))
+if (planDate) planDate.addEventListener("change", () => {
+  if (!planDate.value) return
+  planSelected = planDate.value
+  planCursor = new Date(planDate.value + "T00:00:00")
+  renderTodayPlan(verses)
+})
 const btnOpenLibrary = document.getElementById("btnOpenLibrary")
 if (btnOpenLibrary) btnOpenLibrary.addEventListener("click", () => showPage("library"))
 tabSettings.addEventListener("click", () => showPage("settings"))
