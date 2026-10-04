@@ -36,6 +36,14 @@
 
             <!-- Short subtitle that explains what the app does -->
             <p class="sub">Pick a verse. Choose a game. Memorize step by step.</p>
+            <section class="card progressCard" id="progressCard">
+                <div class="progressTop">
+                    <div><strong id="streakCount">0</strong> day streak</div>
+                    <div id="todayCount">Today: 0 practiced</div>
+                </div>
+                <div class="weekRow" id="weekRow"></div>
+                <div class="stats" id="weekSummary">This week: 0 days</div>
+            </section>
             
             <!-- Simple line break for spacing -->
             <br>
@@ -496,6 +504,18 @@
                 </div>
 
                 <div class="result" id="settingsMsg">Theme saved in this browser.</div>
+
+                <hr class="sep">
+
+                <h2>Daily reminder</h2>
+                <div class="row">
+                    <label for="reminderTime">Remind me at</label>
+                    <input id="reminderTime" type="time" value="20:00">
+                </div>
+                <div class="controls">
+                    <button id="btnEnableReminder" type="button">Turn on reminders</button>
+                </div>
+                <div class="stats" id="reminderMsg">Reminders stay in this browser. On iPhone, add the site to your Home Screen.</div>
 
                 <br>
 

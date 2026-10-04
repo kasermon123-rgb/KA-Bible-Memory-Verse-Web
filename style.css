@@ -646,3 +646,47 @@ textarea:disabled {
     grid-template-columns: 1fr;
   }
 }
+
+.progressCard {
+  margin: 8px 0 18px;
+  padding: 14px;
+}
+
+.progressTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+  margin-bottom: 10px;
+}
+
+.weekRow {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+.weekDay {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.weekDot {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+}
+
+.weekDot.done {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.weekDot.today {
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}

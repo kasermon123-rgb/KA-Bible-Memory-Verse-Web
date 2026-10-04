@@ -571,6 +571,165 @@ function saveTheme(theme) {
   if (settingsMsg) settingsMsg.textContent = "Theme saved to your account."
 }
 
+
+const PROGRESS_KEY = "scriptureMemoryProgress"
+let reminderTimer = null
+
+function todayKey(date = new Date()) {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, "0")
+  const d = String(date.getDate()).padStart(2, "0")
+  return y + "-" + m + "-" + d
+}
+
+function readProgress() {
+  try {
+    const data = JSON.parse(localStorage.getItem(PROGRESS_KEY) || "{}")
+    return {
+      days: data.days && typeof data.days === "object" ? data.days : {},
+      reminderTime: data.reminderTime || "20:00",
+      remindersOn: Boolean(data.remindersOn),
+      lastNotifiedDate: data.lastNotifiedDate || ""
+    }
+  } catch (error) {
+    return { days: {}, reminderTime: "20:00", remindersOn: false, lastNotifiedDate: "" }
+  }
+}
+
+function saveProgress(progress) {
+  localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress))
+  if (currentUser) {
+    setDoc(doc(db, "users", currentUser.uid, "meta", "progress"), progress).catch(error => {
+      console.error("Save progress failed:", error)
+    })
+  }
+}
+
+function computeStreak(days) {
+  const cursor = new Date()
+  if (!days[todayKey(cursor)] || !days[todayKey(cursor)].sessions) {
+    cursor.setDate(cursor.getDate() - 1)
+  }
+  let streak = 0
+  while (days[todayKey(cursor)] && days[todayKey(cursor)].sessions > 0) {
+    streak += 1
+    cursor.setDate(cursor.getDate() - 1)
+  }
+  return streak
+}
+
+function recordPractice(mastered) {
+  const progress = readProgress()
+  const key = todayKey()
+  const day = progress.days[key] || { sessions: 0, mastered: 0 }
+  day.sessions += 1
+  if (mastered) day.mastered += 1
+  progress.days[key] = day
+  saveProgress(progress)
+  renderProgress()
+}
+
+function renderProgress() {
+  const progress = readProgress()
+  const streakEl = document.getElementById("streakCount")
+  const todayEl = document.getElementById("todayCount")
+  const weekEl = document.getElementById("weekRow")
+  const summaryEl = document.getElementById("weekSummary")
+  if (!streakEl || !weekEl) return
+
+  const today = progress.days[todayKey()] || { sessions: 0, mastered: 0 }
+  streakEl.textContent = String(computeStreak(progress.days))
+  todayEl.textContent = "Today: " + today.sessions + " practiced"
+
+  weekEl.innerHTML = ""
+  let weekDays = 0
+  for (let offset = 6; offset >= 0; offset--) {
+    const date = new Date()
+    date.setDate(date.getDate() - offset)
+    const key = todayKey(date)
+    const done = progress.days[key] && progress.days[key].sessions > 0
+    if (done) weekDays += 1
+    const cell = document.createElement("div")
+    cell.className = "weekDay"
+    const dot = document.createElement("span")
+    dot.className = "weekDot" + (done ? " done" : "") + (offset === 0 ? " today" : "")
+    const label = document.createElement("span")
+    label.textContent = date.toLocaleDateString(undefined, { weekday: "narrow" })
+    cell.appendChild(dot)
+    cell.appendChild(label)
+    weekEl.appendChild(cell)
+  }
+  summaryEl.textContent = "This week: " + weekDays + " day" + (weekDays === 1 ? "" : "s")
+}
+
+async function enableReminders() {
+  const reminderMsg = document.getElementById("reminderMsg")
+  const reminderTime = document.getElementById("reminderTime")
+  if (!("Notification" in window) || !("serviceWorker" in navigator)) {
+    if (reminderMsg) reminderMsg.textContent = "This browser cannot show reminders."
+    return
+  }
+  const permission = await Notification.requestPermission()
+  if (permission !== "granted") {
+    if (reminderMsg) reminderMsg.textContent = "Reminders stay off until notification permission is allowed."
+    return
+  }
+  const progress = readProgress()
+  progress.remindersOn = true
+  progress.reminderTime = reminderTime && reminderTime.value ? reminderTime.value : "20:00"
+  saveProgress(progress)
+  await registerReminderWorker()
+  scheduleReminder()
+  if (reminderMsg) reminderMsg.textContent = "Reminder set for " + progress.reminderTime + ". Keep this site installed for the most reliable alert."
+}
+
+async function registerReminderWorker() {
+  if (!("serviceWorker" in navigator)) return null
+  const registration = await navigator.serviceWorker.register("./sw.js")
+  if (registration.periodicSync) {
+    try {
+      await registration.periodicSync.register("scripture-reminder", { minInterval: 12 * 60 * 60 * 1000 })
+    } catch (error) {
+      console.warn("Periodic reminder not available:", error)
+    }
+  }
+  return registration
+}
+
+async function maybeNotify() {
+  const progress = readProgress()
+  if (!progress.remindersOn || Notification.permission !== "granted") return
+  if (progress.lastNotifiedDate === todayKey()) return
+  const today = progress.days[todayKey()]
+  if (today && today.sessions > 0) return
+  const [hour, minute] = progress.reminderTime.split(":").map(Number)
+  const now = new Date()
+  if (now.getHours() < hour || (now.getHours() === hour && now.getMinutes() < minute)) return
+
+  const registration = await navigator.serviceWorker.ready
+  await registration.showNotification("Scripture Memory", {
+    body: "Time to review a verse and keep your streak.",
+    tag: "scripture-reminder"
+  })
+  progress.lastNotifiedDate = todayKey()
+  saveProgress(progress)
+}
+
+function scheduleReminder() {
+  if (reminderTimer) clearTimeout(reminderTimer)
+  const progress = readProgress()
+  if (!progress.remindersOn) return
+  const [hour, minute] = (progress.reminderTime || "20:00").split(":").map(Number)
+  const target = new Date()
+  target.setHours(hour, minute, 0, 0)
+  if (target <= new Date()) target.setDate(target.getDate() + 1)
+  reminderTimer = setTimeout(async () => {
+    await maybeNotify()
+    scheduleReminder()
+  }, target - new Date())
+  maybeNotify()
+}
+
 function initTheme() {
   applyTheme(getSavedTheme())
 }
@@ -1205,6 +1364,8 @@ function showPracticeScore(parts) {
     renderReferenceDisplay(true)
     saveScore()
   }
+
+  recordPractice(percent === 100)
 }
 
 function checkTypeMode() {
@@ -3259,7 +3420,22 @@ window.addEventListener("scroll", () => {
 })
 
 initTheme()
+renderProgress()
 showPage("library")
 refreshVerses()
 loadStats()
 loadVersesFromCloud()
+registerReminderWorker().then(() => scheduleReminder()).catch(error => console.warn(error))
+
+const reminderTimeInput = document.getElementById("reminderTime")
+const btnEnableReminder = document.getElementById("btnEnableReminder")
+if (reminderTimeInput) {
+  reminderTimeInput.value = readProgress().reminderTime || "20:00"
+  reminderTimeInput.addEventListener("change", () => {
+    const progress = readProgress()
+    progress.reminderTime = reminderTimeInput.value || "20:00"
+    saveProgress(progress)
+    scheduleReminder()
+  })
+}
+if (btnEnableReminder) btnEnableReminder.addEventListener("click", enableReminders)
