@@ -306,6 +306,7 @@ const btnCancelMoveVerse = document.getElementById("btnCancelMoveVerse")
 const btnImportCsvPage = document.getElementById("btnImportCsvPage")
 const pageImportCsv = document.getElementById("pageImportCsv")
 const csvFileInput = document.getElementById("csvFileInput")
+let pendingCsvText = ""
 const importCollectionSelect = document.getElementById("importCollectionSelect")
 const importGroupSelect = document.getElementById("importGroupSelect")
 const btnImportCsv = document.getElementById("btnImportCsv")
@@ -3428,10 +3429,18 @@ function parseCsvText(csvText) {
   }).filter(row => row.ref || row.text || row.version || row.title)
 }
 
+function readChosenCsv(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result || ""))
+    reader.onerror = () => reject(reader.error || new Error("Could not read the file."))
+    reader.readAsText(file)
+  })
+}
+
 async function importCsvFile() {
-  const file = csvFileInput.files && csvFileInput.files[0]
-  if (!file) {
-    importCsvMsg.textContent = "Please choose a CSV file."
+  if (!pendingCsvText) {
+    importCsvMsg.textContent = "Please choose the CSV file again, then tap Import."
     return
   }
 
@@ -3439,8 +3448,7 @@ async function importCsvFile() {
   const groupValue = collectionValue === "None" ? "" : (importGroupSelect.value || "")
 
   try {
-    const csvText = await file.text()
-    const rows = parseCsvText(csvText)
+    const rows = parseCsvText(pendingCsvText)
 
     if (rows.length === 0) {
       importCsvMsg.textContent = "No valid CSV rows found. Use columns ref, version, text, title."
@@ -3668,6 +3676,17 @@ if (btnDeleteAccount) {
 btnImportCsvPage.addEventListener("click", () => showPage("importCsv"))
 btnCancelImportCsv.addEventListener("click", () => showPage("library"))
 btnImportCsv.addEventListener("click", importCsvFile)
+if (csvFileInput) csvFileInput.addEventListener("change", async () => {
+  const file = csvFileInput.files && csvFileInput.files[0]
+  pendingCsvText = ""
+  if (!file) return
+  try {
+    pendingCsvText = await readChosenCsv(file)
+    if (importCsvMsg) importCsvMsg.textContent = "File ready. Tap Import CSV."
+  } catch (error) {
+    if (importCsvMsg) importCsvMsg.textContent = "Could not read that file. Choose it again."
+  }
+})
 
 importCollectionSelect.addEventListener("change", () => {
   renderImportGroupOptions(importCollectionSelect.value || "None", "")
