@@ -1842,6 +1842,15 @@ function openGamePicker(verseId) {
     gameMemoryTitle.classList.toggle("isHidden", !verse.title)
   }
 
+  const todayPercent = verseTodayPercent(verse.id)
+  const gameProgressBar = document.getElementById("gameProgressBar")
+  const gameProgressText = document.getElementById("gameProgressText")
+  if (gameProgressBar) gameProgressBar.style.width = todayPercent + "%"
+  if (gameProgressText) {
+    gameProgressText.textContent = todayPercent + "%"
+    gameProgressText.className = "verseProgressText" + (todayPercent === 100 ? " good" : todayPercent >= 50 ? " mid" : " low")
+  }
+
   showPage("game")
 }
 

@@ -713,3 +713,14 @@ textarea:disabled {
 .verseProgressText.low { color: #b42318; }
 .verseProgressText.mid { color: #b45309; }
 .verseProgressText.good { color: #157347; }
+
+.verseProgressTrack {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.gameProgress {
+  margin: 12px 0;
+}
