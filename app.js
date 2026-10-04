@@ -154,6 +154,7 @@ let words = []
 let hiddenIndexes = []
 
 let selectedVerseId = ""
+let typeReading = true
 let currentMode = "type"
 
 let tapDifficulty = "easy"
@@ -821,7 +822,71 @@ function revealAllWords() {
   answer.focus()
 }
 
+function showTypeRead() {
+  typeReading = true
+  hiddenIndexes = []
+  renderVerse()
+  renderReferenceDisplay(true)
+  if (practiceTitle && titleWords.length) practiceTitle.classList.remove("isHidden")
+  verseText.classList.remove("isHidden")
+  answerRow.classList.add("isHidden")
+  if (titleAnswerRow) titleAnswerRow.classList.add("isHidden")
+  if (refAnswerRow) refAnswerRow.classList.add("isHidden")
+  btnHideAll.textContent = "Hide and start"
+  btnHideAll.classList.remove("isHidden")
+  btnCheck.classList.add("isHidden")
+  btnReset.classList.add("isHidden")
+  btnGiveHint.classList.add("isHidden")
+  setTypingEnabled(false)
+  result.textContent = "Read it, then hide it and try."
+  result.className = "result"
+}
+
+function showTypeTest() {
+  typeReading = false
+  hiddenIndexes = words.map((word, index) => index)
+  renderVerse()
+  renderReferenceDisplay(false)
+  if (practiceTitle) practiceTitle.classList.add("isHidden")
+  verseText.classList.add("isHidden")
+  answerRow.classList.remove("isHidden")
+  if (titleAnswerRow) titleAnswerRow.classList.toggle("isHidden", titleWords.length === 0)
+  if (refAnswerRow) refAnswerRow.classList.toggle("isHidden", refWords.length === 0)
+  btnHideAll.textContent = "Show the verse"
+  btnCheck.classList.remove("isHidden")
+  btnReset.classList.remove("isHidden")
+  btnGiveHint.classList.add("isHidden")
+  setTypingEnabled(true)
+  answer.value = ""
+  if (titleAnswer) titleAnswer.value = ""
+  if (refAnswer) refAnswer.value = ""
+  result.textContent = ""
+  result.className = "result"
+  if (refAnswer) refAnswer.focus()
+  else answer.focus()
+}
+
+function endTypeAttempt() {
+  typeReading = true
+  hiddenIndexes = []
+  renderVerse()
+  renderReferenceDisplay(true)
+  if (practiceTitle && titleWords.length) practiceTitle.classList.remove("isHidden")
+  verseText.classList.remove("isHidden")
+  setTypingEnabled(false)
+  btnHideAll.textContent = "Hide and start"
+  btnCheck.classList.add("isHidden")
+  result.textContent = "The verse is shown. This try does not count as memorized."
+  result.className = "result"
+}
+
 function toggleHideAll() {
+  if (currentMode === "type") {
+    if (typeReading) showTypeTest()
+    else endTypeAttempt()
+    return
+  }
+
   if (hiddenIndexes.length === words.length) {
     revealAllWords()
     btnHideAll.textContent = "Hide All"
@@ -847,6 +912,10 @@ function renderReferenceDisplay(revealed) {
 }
 
 function resetTypeMode() {
+  if (currentMode === "type") {
+    showTypeTest()
+    return
+  }
   hiddenIndexes = words.map((word, index) => index)
   renderVerse()
   renderReferenceDisplay(false)
@@ -1633,9 +1702,12 @@ function applyModeUI() {
   result.className = "result"
 
   if (currentMode === "type") {
-    resetTypeMode()
+    showTypeRead()
     return
   }
+  btnCheck.classList.remove("isHidden")
+  btnReset.classList.remove("isHidden")
+  btnGiveHint.classList.remove("isHidden")
 
   if (currentMode === "drag") {
     setTypingEnabled(false)
