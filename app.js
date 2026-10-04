@@ -3430,17 +3430,25 @@ function parseCsvText(csvText) {
 }
 
 function readChosenCsv(file) {
+  const copy = file.slice(0, file.size, file.type || "text/csv")
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => resolve(String(reader.result || ""))
     reader.onerror = () => reject(reader.error || new Error("Could not read the file."))
-    reader.readAsText(file)
+    reader.readAsText(copy)
   })
 }
 
 async function importCsvFile() {
+  if (!pendingCsvText && csvFileInput && csvFileInput.files && csvFileInput.files[0]) {
+    try {
+      pendingCsvText = await readChosenCsv(csvFileInput.files[0])
+    } catch (error) {
+      pendingCsvText = ""
+    }
+  }
   if (!pendingCsvText) {
-    importCsvMsg.textContent = "Please choose the CSV file again, then tap Import."
+    importCsvMsg.textContent = "The phone did not keep the file. Choose it again, wait for File ready, then tap Import."
     return
   }
 
@@ -3680,10 +3688,12 @@ if (csvFileInput) csvFileInput.addEventListener("change", async () => {
   const file = csvFileInput.files && csvFileInput.files[0]
   pendingCsvText = ""
   if (!file) return
+  if (importCsvMsg) importCsvMsg.textContent = "Reading file..."
   try {
     pendingCsvText = await readChosenCsv(file)
     if (importCsvMsg) importCsvMsg.textContent = "File ready. Tap Import CSV."
   } catch (error) {
+    pendingCsvText = ""
     if (importCsvMsg) importCsvMsg.textContent = "Could not read that file. Choose it again."
   }
 })
