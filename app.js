@@ -1905,6 +1905,132 @@ function renderGroupFilters() {
   })
 }
 
+
+const PLAN_KEY = "scriptureMemoryPlan"
+let planViewOffset = 0
+
+function readPlan() {
+  try {
+    const data = JSON.parse(localStorage.getItem(PLAN_KEY) || "{}")
+    const perDay = Math.max(1, Math.min(20, Number(data.perDay) || 3))
+    return { perDay, days: data.days && typeof data.days === "object" ? data.days : {} }
+  } catch (error) {
+    return { perDay: 3, days: {} }
+  }
+}
+
+function savePlan(plan) {
+  localStorage.setItem(PLAN_KEY, JSON.stringify(plan))
+}
+
+function dayKeyFromOffset(offset) {
+  const date = new Date()
+  date.setDate(date.getDate() + offset)
+  return todayKey(date)
+}
+
+function ensureWeekPlan(pool) {
+  const plan = readPlan()
+  const ids = pool.map(verse => verse.id)
+  const used = new Set()
+  for (let offset = 0; offset < 7; offset++) {
+    const key = dayKeyFromOffset(offset)
+    const saved = Array.isArray(plan.days[key]) ? plan.days[key].filter(id => ids.includes(id)) : null
+    if (saved && saved.length) {
+      plan.days[key] = saved.slice(0, plan.perDay)
+      saved.forEach(id => used.add(id))
+      continue
+    }
+    const next = []
+    for (const id of ids) {
+      if (used.has(id)) continue
+      next.push(id)
+      used.add(id)
+      if (next.length >= plan.perDay) break
+    }
+    plan.days[key] = next
+  }
+  savePlan(plan)
+  return plan
+}
+
+function renderTodayPlan(pool) {
+  const planBox = document.getElementById("todayPlan")
+  const week = document.getElementById("planWeek")
+  const list = document.getElementById("planList")
+  const note = document.getElementById("planNote")
+  const count = document.getElementById("planCount")
+  const title = document.getElementById("planTitle")
+  if (!planBox || !week || !list) return
+  if (!pool.length) {
+    planBox.classList.add("isHidden")
+    return
+  }
+  planBox.classList.remove("isHidden")
+  const plan = ensureWeekPlan(pool)
+  if (count) count.textContent = String(plan.perDay)
+  const viewKey = dayKeyFromOffset(planViewOffset)
+  if (title) title.textContent = planViewOffset === 0 ? "Today" : viewKey
+
+  week.innerHTML = ""
+  for (let offset = 0; offset < 7; offset++) {
+    const date = new Date()
+    date.setDate(date.getDate() + offset)
+    const button = document.createElement("button")
+    button.type = "button"
+    button.className = "weekDay planDay" + (offset === planViewOffset ? " active" : "")
+    button.textContent = date.toLocaleDateString(undefined, { weekday: "narrow" })
+    button.addEventListener("click", () => {
+      planViewOffset = offset
+      renderLibrary()
+    })
+    week.appendChild(button)
+  }
+
+  list.innerHTML = ""
+  const chosen = plan.days[viewKey] || []
+  chosen.forEach(id => {
+    const verse = pool.find(item => item.id === id) || verses.find(item => item.id === id)
+    if (!verse) return
+    const row = document.createElement("div")
+    row.className = "planRow"
+    const name = document.createElement("div")
+    name.textContent = (verse.title || verse.ref || "Untitled") + " · " + verseTodayPercent(verse.id) + "%"
+    const actions = document.createElement("div")
+    actions.className = "controls"
+    const play = document.createElement("button")
+    play.type = "button"
+    play.textContent = "Play"
+    play.addEventListener("click", () => openGamePicker(verse.id))
+    const later = document.createElement("button")
+    later.type = "button"
+    later.textContent = "Later"
+    later.addEventListener("click", () => movePlanVerseLater(verse.id, viewKey, pool))
+    actions.appendChild(play)
+    actions.appendChild(later)
+    row.appendChild(name)
+    row.appendChild(actions)
+    list.appendChild(row)
+  })
+  if (!chosen.length) list.innerHTML = `<div class="result">No verses left for this day.</div>`
+  if (note) note.textContent = "From the collection and group you selected. Later moves a verse to the next day."
+}
+
+function movePlanVerseLater(id, key, pool) {
+  const plan = readPlan()
+  const current = (plan.days[key] || []).filter(item => item !== id)
+  const nextKey = dayKeyFromOffset(planViewOffset + 1)
+  const next = plan.days[nextKey] || []
+  if (!next.includes(id)) next.push(id)
+  const used = new Set(current.concat(next))
+  const fill = pool.find(verse => !used.has(verse.id) && !(plan.days[key] || []).includes(verse.id))
+  if (fill) current.push(fill.id)
+  plan.days[key] = current.slice(0, plan.perDay)
+  plan.days[nextKey] = next
+  savePlan(plan)
+  renderLibrary()
+}
+
 function renderLibrary() {
   if (window._libraryRenderPending) return
 
@@ -1956,6 +2082,7 @@ function _renderLibraryNow() {
   }
 
   filteredVerses = filteredVerses.slice(0, 100)
+  renderTodayPlan(filteredVerses)
 
   if (filteredVerses.length === 0) {
     libraryGrid.innerHTML = `<div class="result">No verses found.</div>`
@@ -3559,6 +3686,22 @@ window.addEventListener("scroll", () => {
 
 initTheme()
 renderProgress()
+const planLess = document.getElementById("planLess")
+const planMore = document.getElementById("planMore")
+if (planLess) planLess.addEventListener("click", () => {
+  const plan = readPlan()
+  plan.perDay = Math.max(1, plan.perDay - 1)
+  plan.days = {}
+  savePlan(plan)
+  renderLibrary()
+})
+if (planMore) planMore.addEventListener("click", () => {
+  const plan = readPlan()
+  plan.perDay = Math.min(20, plan.perDay + 1)
+  plan.days = {}
+  savePlan(plan)
+  renderLibrary()
+})
 showPage("library")
 refreshVerses()
 loadStats()

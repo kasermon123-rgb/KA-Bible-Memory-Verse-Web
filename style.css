@@ -724,3 +724,11 @@ textarea:disabled {
 .gameProgress {
   margin: 12px 0;
 }
+
+.todayPlan { margin-bottom: 16px; }
+.planCount { display: flex; align-items: center; gap: 8px; }
+.planCount button { min-width: 36px; }
+.planDay { border: none; background: transparent; }
+.planDay.active { color: var(--accent); font-weight: 700; }
+.planRow { display: flex; justify-content: space-between; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.allVersesHeading { font-size: 18px; margin: 8px 0; }
