@@ -177,6 +177,8 @@ const gameMemoryTitle = document.getElementById("gameMemoryTitle")
 
 const pagePractice = document.getElementById("pagePractice")
 const pageLibrary = document.getElementById("pageLibrary")
+const pageToday = document.getElementById("pageToday")
+const tabToday = document.getElementById("tabToday")
 const pageGame = document.getElementById("pageGame")
 const pageSettings = document.getElementById("pageSettings")
 
@@ -381,6 +383,7 @@ async function loadVersesFromCloud() {
     updateGroupState()
     renderGroupOptions()
     renderLibrary()
+    renderTodayPlan(verses)
 
     if (verses.length > 0) {
       loadVerse(verses[0].id)
@@ -416,6 +419,7 @@ async function loadVersesFromCloud() {
 
     verses = DEFAULT_VERSES.concat(cloudVerses)
     renderLibrary()
+    renderTodayPlan(verses)
 
     if (verses.length > 0) {
       loadVerse(verses[0].id)
@@ -1764,18 +1768,27 @@ function showPage(name) {
   pageImportCsv.classList.add("isHidden")
   pagePractice.classList.add("isHidden")
   pageLibrary.classList.add("isHidden")
+  if (pageToday) pageToday.classList.add("isHidden")
   pageAddCollection.classList.add("isHidden")
   pageAddGroup.classList.add("isHidden")
   pageGame.classList.add("isHidden")
   pageSettings.classList.add("isHidden")
 
   tabLibrary.classList.remove("active")
+  if (tabToday) tabToday.classList.remove("active")
   tabSettings.classList.remove("active")
 
   if (name === "practice") {
     pagePractice.classList.remove("isHidden")
     refreshVerses()
     setPracticeEnabled(verses.length > 0)
+    return
+  }
+
+  if (name === "today") {
+    if (pageToday) pageToday.classList.remove("isHidden")
+    if (tabToday) tabToday.classList.add("active")
+    renderTodayPlan(verses)
     return
   }
 
@@ -1929,29 +1942,24 @@ function dayKeyFromOffset(offset) {
   return todayKey(date)
 }
 
-function ensureWeekPlan(pool) {
+function ensureWeekPlan() {
   const plan = readPlan()
-  const ids = pool.map(verse => verse.id)
-  const used = new Set()
   for (let offset = 0; offset < 7; offset++) {
     const key = dayKeyFromOffset(offset)
-    const saved = Array.isArray(plan.days[key]) ? plan.days[key].filter(id => ids.includes(id)) : null
-    if (saved && saved.length) {
-      plan.days[key] = saved.slice(0, plan.perDay)
-      saved.forEach(id => used.add(id))
-      continue
-    }
-    const next = []
-    for (const id of ids) {
-      if (used.has(id)) continue
-      next.push(id)
-      used.add(id)
-      if (next.length >= plan.perDay) break
-    }
-    plan.days[key] = next
+    plan.days[key] = Array.isArray(plan.days[key]) ? plan.days[key] : []
   }
   savePlan(plan)
   return plan
+}
+
+function addVerseToPlan(id) {
+  const plan = readPlan()
+  const key = dayKeyFromOffset(planViewOffset)
+  const list = plan.days[key] || []
+  if (!list.includes(id)) list.push(id)
+  plan.days[key] = list
+  savePlan(plan)
+  showPage("today")
 }
 
 function renderTodayPlan(pool) {
@@ -1962,12 +1970,7 @@ function renderTodayPlan(pool) {
   const count = document.getElementById("planCount")
   const title = document.getElementById("planTitle")
   if (!planBox || !week || !list) return
-  if (!pool.length) {
-    planBox.classList.add("isHidden")
-    return
-  }
-  planBox.classList.remove("isHidden")
-  const plan = ensureWeekPlan(pool)
+  const plan = ensureWeekPlan()
   if (count) count.textContent = String(plan.perDay)
   const viewKey = dayKeyFromOffset(planViewOffset)
   if (title) title.textContent = planViewOffset === 0 ? "Today" : viewKey
@@ -1990,7 +1993,7 @@ function renderTodayPlan(pool) {
   list.innerHTML = ""
   const chosen = plan.days[viewKey] || []
   chosen.forEach(id => {
-    const verse = pool.find(item => item.id === id) || verses.find(item => item.id === id)
+    const verse = verses.find(item => item.id === id)
     if (!verse) return
     const row = document.createElement("div")
     row.className = "planRow"
@@ -2005,7 +2008,7 @@ function renderTodayPlan(pool) {
     const later = document.createElement("button")
     later.type = "button"
     later.textContent = "Later"
-    later.addEventListener("click", () => movePlanVerseLater(verse.id, viewKey, pool))
+    later.addEventListener("click", () => movePlanVerseLater(verse.id, viewKey))
     actions.appendChild(play)
     actions.appendChild(later)
     row.appendChild(name)
@@ -2013,22 +2016,18 @@ function renderTodayPlan(pool) {
     list.appendChild(row)
   })
   if (!chosen.length) list.innerHTML = `<div class="result">No verses left for this day.</div>`
-  if (note) note.textContent = "From the collection and group you selected. Later moves a verse to the next day."
+  if (note) note.textContent = chosen.length ? "Only verses you added are here. Later moves one to the next day." : "Nothing for this day. Choose verses from Library."
 }
 
-function movePlanVerseLater(id, key, pool) {
+function movePlanVerseLater(id, key) {
   const plan = readPlan()
-  const current = (plan.days[key] || []).filter(item => item !== id)
+  plan.days[key] = (plan.days[key] || []).filter(item => item !== id)
   const nextKey = dayKeyFromOffset(planViewOffset + 1)
   const next = plan.days[nextKey] || []
   if (!next.includes(id)) next.push(id)
-  const used = new Set(current.concat(next))
-  const fill = pool.find(verse => !used.has(verse.id) && !(plan.days[key] || []).includes(verse.id))
-  if (fill) current.push(fill.id)
-  plan.days[key] = current.slice(0, plan.perDay)
   plan.days[nextKey] = next
   savePlan(plan)
-  renderLibrary()
+  renderTodayPlan(verses)
 }
 
 function renderLibrary() {
@@ -2082,8 +2081,6 @@ function _renderLibraryNow() {
   }
 
   filteredVerses = filteredVerses.slice(0, 100)
-  renderTodayPlan(filteredVerses)
-
   if (filteredVerses.length === 0) {
     libraryGrid.innerHTML = `<div class="result">No verses found.</div>`
     return
@@ -2209,6 +2206,11 @@ function _renderLibraryNow() {
       openGamePicker(verse.id)
     })
 
+    const addBtn = document.createElement("button")
+    addBtn.type = "button"
+    addBtn.textContent = "Add"
+    addBtn.addEventListener("click", () => addVerseToPlan(verse.id))
+
     const moveBtn = document.createElement("button")
     moveBtn.type = "button"
     moveBtn.textContent = "Move"
@@ -2224,6 +2226,7 @@ function _renderLibraryNow() {
       confirmDelete(verse.id, row)
     })
 
+    actionBtns.appendChild(addBtn)
     actionBtns.appendChild(playBtn)
     actionBtns.appendChild(moveBtn)
     actionBtns.appendChild(deleteBtn)
@@ -3628,7 +3631,7 @@ btnAutoFill.addEventListener("click", autoFillFromPastedText)
 btnSaveVerse.addEventListener("click", saveNewVerse)
 btnClearVerse.addEventListener("click", clearVerseForm)
 btnBackToLibrary.addEventListener("click", () => {
-  showPage("library")
+  showPage("today")
   setTimeout(() => {
     window.scrollTo(0, libraryScrollY)
   }, 0)
@@ -3638,6 +3641,9 @@ btnLogin.addEventListener("click", loginWithGoogle)
 btnLogout.addEventListener("click", logoutUser)
 
 tabLibrary.addEventListener("click", () => showPage("library"))
+if (tabToday) tabToday.addEventListener("click", () => showPage("today"))
+const btnOpenLibrary = document.getElementById("btnOpenLibrary")
+if (btnOpenLibrary) btnOpenLibrary.addEventListener("click", () => showPage("library"))
 tabSettings.addEventListener("click", () => showPage("settings"))
 
 modeType.addEventListener("click", () => startSelectedGame("type"))
@@ -3686,23 +3692,7 @@ window.addEventListener("scroll", () => {
 
 initTheme()
 renderProgress()
-const planLess = document.getElementById("planLess")
-const planMore = document.getElementById("planMore")
-if (planLess) planLess.addEventListener("click", () => {
-  const plan = readPlan()
-  plan.perDay = Math.max(1, plan.perDay - 1)
-  plan.days = {}
-  savePlan(plan)
-  renderLibrary()
-})
-if (planMore) planMore.addEventListener("click", () => {
-  const plan = readPlan()
-  plan.perDay = Math.min(20, plan.perDay + 1)
-  plan.days = {}
-  savePlan(plan)
-  renderLibrary()
-})
-showPage("library")
+showPage("today")
 refreshVerses()
 loadStats()
 loadVersesFromCloud()
