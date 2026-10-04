@@ -106,14 +106,6 @@
                          Hidden until first letter mode is selected. -->
                 <div id="lettersGame" class="isHidden">
 
-                    <!-- Reference area for first letter mode. -->
-                    <div id="refLettersSection" class="verse">
-
-                        <label>Reference</label>
-
-                        <div id="refLettersGame"></div>
-                    </div>
-
                     <!-- Title area for first letter mode.
                              Hidden if there is no title. -->
                     <div id="titleLettersSection" class="verse isHidden">
@@ -123,6 +115,14 @@
 
                         <!-- JavaScript inserts title first-letter practice here -->
                         <div id="titleLettersGame"></div>
+                    </div>
+
+                    <!-- Reference area for first letter mode. -->
+                    <div id="refLettersSection" class="verse">
+
+                        <label>Reference</label>
+
+                        <div id="refLettersGame"></div>
                     </div>
 
                     <!-- Verse area for first letter mode -->
@@ -162,18 +162,6 @@
                         <div class="stats">Easy leaves most words and hides 3. Medium hides 5. Hard hides 7. Some words always stay visible.</div>
                     </div>
 
-                    <!-- Reference blank-filling section. -->
-                    <div id="refDragSection">
-
-                        <label>Reference</label>
-
-                        <div class="verse" id="refBlankLine"></div>
-
-                        <div id="refWordBank" class="controls"></div>
-
-                        <hr class="sep">
-                    </div>
-
                     <!-- Title blank-filling section. Hidden if there is no title. -->
                     <div id="titleDragSection" class="isHidden">
 
@@ -187,6 +175,18 @@
                         <div id="titleWordBank" class="controls"></div>
 
                         <!-- Separator line -->
+                        <hr class="sep">
+                    </div>
+
+                    <!-- Reference blank-filling section. -->
+                    <div id="refDragSection">
+
+                        <label>Reference</label>
+
+                        <div class="verse" id="refBlankLine"></div>
+
+                        <div id="refWordBank" class="controls"></div>
+
                         <hr class="sep">
                     </div>
 
@@ -211,14 +211,6 @@
                 <!-- Separator line -->
                 <hr class="sep">
 
-                <!-- Row for typing the reference from memory. -->
-                <div class="row" id="refAnswerRow">
-
-                    <label>Type Reference from Memory</label>
-
-                    <input id="refAnswer" type="text" placeholder="Example: John 3:16">
-                </div>
-
                 <!-- Row for typing the title from memory. Hidden unless the title input is needed. -->
                 <div class="row isHidden" id="titleAnswerRow">
 
@@ -227,6 +219,14 @@
 
                     <!-- Input box for typing the title -->
                     <input id="titleAnswer" type="text" placeholder="Type title here.">
+                </div>
+
+                <!-- Row for typing the reference from memory. -->
+                <div class="row" id="refAnswerRow">
+
+                    <label>Type Reference from Memory</label>
+
+                    <input id="refAnswer" type="text" placeholder="Example: John 3:16">
                 </div>
 
                 <!-- Row for typing the verse from memory -->

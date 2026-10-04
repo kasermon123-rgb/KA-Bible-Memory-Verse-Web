@@ -819,7 +819,8 @@ function hideAllWords() {
   renderVerse()
   renderReferenceDisplay(false)
   setTypingEnabled(true)
-  if (refAnswer) refAnswer.focus()
+  if (titleAnswer && titleWords.length) titleAnswer.focus()
+  else if (refAnswer) refAnswer.focus()
   else answer.focus()
 }
 
@@ -870,7 +871,8 @@ function showTypeTest() {
   if (refAnswer) refAnswer.value = ""
   result.textContent = ""
   result.className = "result"
-  if (refAnswer) refAnswer.focus()
+  if (titleAnswer && titleWords.length) titleAnswer.focus()
+  else if (refAnswer) refAnswer.focus()
   else answer.focus()
 }
 
@@ -1332,8 +1334,8 @@ function renderLettersGame() {
   }
 
   const firstBox =
-    document.querySelector('#refLettersGame .letterBox:not(.isHidden)') ||
     document.querySelector('#titleLettersGame .letterBox:not(.isHidden)') ||
+    document.querySelector('#refLettersGame .letterBox:not(.isHidden)') ||
     document.querySelector('#verseLettersGame .letterBox:not(.isHidden)')
 
   if (firstBox) firstBox.focus()
@@ -1417,8 +1419,8 @@ function renderLetterSection(sourceWords, container, sectionType) {
 
 function moveToNextLetterBox() {
   const next =
-    document.querySelector('#refLettersGame .letterBox:not(.isHidden)') ||
     document.querySelector('#titleLettersGame .letterBox:not(.isHidden)') ||
+    document.querySelector('#refLettersGame .letterBox:not(.isHidden)') ||
     document.querySelector('#verseLettersGame .letterBox:not(.isHidden)')
 
   if (next) next.focus()
@@ -1496,8 +1498,8 @@ function checkTypeMode() {
   const userVerseWords = normalize(answer.value).split(" ").filter(Boolean)
 
   showPracticeScore([
-    { label: "Reference", correct: countMatchingWords(expectedRefWords, userRefWords), total: expectedRefWords.length },
     { label: "Title", correct: countMatchingWords(expectedTitleWords, userTitleWords), total: expectedTitleWords.length },
+    { label: "Reference", correct: countMatchingWords(expectedRefWords, userRefWords), total: expectedRefWords.length },
     { label: "Verse", correct: countMatchingWords(expectedVerseWords, userVerseWords), total: expectedVerseWords.length }
   ])
 }
@@ -1512,8 +1514,8 @@ function countFilledSlots(slots) {
 
 function checkDragMode() {
   showPracticeScore([
-    { label: "Reference", correct: countFilledSlots(refPuzzleSlots), total: refPuzzleSlots.length },
     { label: "Title", correct: countFilledSlots(titlePuzzleSlots), total: titlePuzzleSlots.length },
+    { label: "Reference", correct: countFilledSlots(refPuzzleSlots), total: refPuzzleSlots.length },
     { label: "Verse", correct: countFilledSlots(versePuzzleSlots), total: versePuzzleSlots.length }
   ])
 }
@@ -1559,8 +1561,8 @@ function checkLettersGame() {
   const verseScore = scoreLetterSection(verseLettersGame, verseWords)
 
   showPracticeScore([
-    { label: "Reference", correct: refScore.correct, total: refScore.total },
     { label: "Title", correct: titleScore.correct, total: titleScore.total },
+    { label: "Reference", correct: refScore.correct, total: refScore.total },
     { label: "Verse", correct: verseScore.correct, total: verseScore.total }
   ])
 }
