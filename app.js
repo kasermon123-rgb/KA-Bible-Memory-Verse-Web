@@ -1478,7 +1478,7 @@ function showPracticeScore(parts) {
   recordPractice(percent === 100)
   if (percent === 100 && !hintUsed && selectedVerseId) {
     if (currentMode === "type") addVerseTodayPercent(selectedVerseId, 0, true)
-    if (currentMode === "letters") addVerseTodayPercent(selectedVerseId, 20, false)
+    if (currentMode === "letters") addVerseTodayPercent(selectedVerseId, 60, false)
     if (currentMode === "drag") {
       const gain = tapDifficulty === "hard" ? 10 : tapDifficulty === "medium" ? 5 : 2
       addVerseTodayPercent(selectedVerseId, gain, false)
