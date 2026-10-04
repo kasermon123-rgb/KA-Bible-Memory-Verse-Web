@@ -904,17 +904,21 @@ function placeBankItemInSlot(slots, bankItems, slotIndex, itemId) {
 
 function blankHideCount(length, ratio) {
   if (!length) return 0
-  if (tapDifficulty === "hard") return length
-  const caps = { easy: 4, medium: 8 }
-  const cap = caps[tapDifficulty] || 4
-  const minimum = tapDifficulty === "medium" ? 2 : 1
-  return Math.min(length, cap, Math.max(minimum, Math.floor(length * ratio)))
+  if (length === 1) return 1
+  const plan = {
+    easy: { ratio: 0.25, cap: 3 },
+    medium: { ratio: 0.4, cap: 5 },
+    hard: { ratio: 0.55, cap: 7 }
+  }
+  const item = plan[tapDifficulty] || plan.easy
+  const hide = Math.max(1, Math.round(length * item.ratio))
+  return Math.min(length - 1, item.cap, hide)
 }
 
 function optionCountForDifficulty() {
-  if (tapDifficulty === "hard") return 8
+  if (tapDifficulty === "hard") return 6
   if (tapDifficulty === "medium") return 5
-  return 3
+  return 4
 }
 
 function visibleBankItems(bankItems, slots, limit = optionCountForDifficulty()) {
