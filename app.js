@@ -2010,14 +2010,26 @@ function renderTodayPlan(pool) {
     later.type = "button"
     later.textContent = "Later"
     later.addEventListener("click", () => movePlanVerseLater(verse.id, viewKey))
+    const remove = document.createElement("button")
+    remove.type = "button"
+    remove.textContent = "Remove"
+    remove.addEventListener("click", () => removePlanVerse(verse.id, viewKey))
     actions.appendChild(play)
     actions.appendChild(later)
+    actions.appendChild(remove)
     row.appendChild(name)
     row.appendChild(actions)
     list.appendChild(row)
   })
   if (!chosen.length) list.innerHTML = `<div class="result">No verses left for this day.</div>`
-  if (note) note.textContent = chosen.length ? "Only verses you added are here. Later moves one to the next day." : "Nothing for this day. Choose verses from Library."
+  if (note) note.textContent = chosen.length ? "Remove takes a verse off this day. It stays in Library." : "Nothing for this day. Choose verses from Library."
+}
+
+function removePlanVerse(id, key) {
+  const plan = readPlan()
+  plan.days[key] = (plan.days[key] || []).filter(item => item !== id)
+  savePlan(plan)
+  renderTodayPlan(verses)
 }
 
 function movePlanVerseLater(id, key) {
