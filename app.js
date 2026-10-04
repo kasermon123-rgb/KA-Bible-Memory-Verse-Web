@@ -155,6 +155,7 @@ let hiddenIndexes = []
 
 let selectedVerseId = ""
 let typeReading = true
+let hintUsed = false
 let currentMode = "type"
 
 let tapDifficulty = "easy"
@@ -867,6 +868,7 @@ function showTypeTest() {
 }
 
 function endTypeAttempt() {
+  hintUsed = true
   typeReading = true
   hiddenIndexes = []
   renderVerse()
@@ -1423,6 +1425,32 @@ function countMatchingWords(expectedWords, userWords) {
   return correct
 }
 
+
+const VERSE_PROGRESS_KEY = "scriptureMemoryVerseProgress"
+
+function readVerseProgress() {
+  try {
+    const data = JSON.parse(localStorage.getItem(VERSE_PROGRESS_KEY) || "{}")
+    if (data.date !== todayKey()) return { date: todayKey(), verses: {} }
+    return { date: data.date, verses: data.verses || {} }
+  } catch (error) {
+    return { date: todayKey(), verses: {} }
+  }
+}
+
+function verseTodayPercent(id) {
+  const progress = readVerseProgress()
+  return Math.max(0, Math.min(100, Number(progress.verses[id] || 0)))
+}
+
+function addVerseTodayPercent(id, gain, fill) {
+  const progress = readVerseProgress()
+  const current = Number(progress.verses[id] || 0)
+  progress.verses[id] = fill ? 100 : Math.min(100, current + gain)
+  localStorage.setItem(VERSE_PROGRESS_KEY, JSON.stringify(progress))
+  renderLibrary()
+}
+
 function showPracticeScore(parts) {
   const shown = parts.filter(part => part.total > 0)
   const total = shown.reduce((sum, part) => sum + part.total, 0)
@@ -1439,6 +1467,16 @@ function showPracticeScore(parts) {
   }
 
   recordPractice(percent === 100)
+  if (percent === 100 && !hintUsed && selectedVerseId) {
+    if (currentMode === "type") addVerseTodayPercent(selectedVerseId, 0, true)
+    if (currentMode === "letters") addVerseTodayPercent(selectedVerseId, 20, false)
+    if (currentMode === "drag") {
+      const gain = tapDifficulty === "hard" ? 10 : tapDifficulty === "medium" ? 5 : 2
+      addVerseTodayPercent(selectedVerseId, gain, false)
+    }
+  } else if (hintUsed) {
+    result.textContent += " Hint was used, so today's bar did not move."
+  }
 }
 
 function checkTypeMode() {
@@ -1634,6 +1672,7 @@ function revealOneLetterBox() {
 }
 
 function giveHint() {
+  hintUsed = true
   if (currentMode === "drag") {
     revealOneBlank()
     return
@@ -1808,6 +1847,7 @@ function openGamePicker(verseId) {
 
 function startSelectedGame(mode) {
   currentMode = mode
+  hintUsed = false
   loadVerse(selectedVerseId)
   applyModeUI()
   showPage("practice")
@@ -1931,8 +1971,21 @@ function _renderLibraryNow() {
       (verse.version ? " (" + verse.version + ")" : "") +
       (verse.group ? " · " + verse.group : "")
 
+    const todayPercent = verseTodayPercent(verse.id)
+    const progressWrap = document.createElement("div")
+    progressWrap.className = "verseProgress"
+    const progressBar = document.createElement("div")
+    progressBar.className = "verseProgressBar"
+    progressBar.style.width = todayPercent + "%"
+    const progressText = document.createElement("div")
+    progressText.className = "verseProgressText" + (todayPercent === 100 ? " good" : todayPercent >= 50 ? " mid" : " low")
+    progressText.textContent = todayPercent + "%"
+    progressWrap.appendChild(progressBar)
+    progressWrap.appendChild(progressText)
+
     meta.appendChild(title)
     meta.appendChild(small)
+    meta.appendChild(progressWrap)
 
     const actions = document.createElement("div")
     actions.className = "cardActions"

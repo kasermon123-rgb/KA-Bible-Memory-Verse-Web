@@ -690,3 +690,26 @@ textarea:disabled {
 .weekDot.today {
   box-shadow: 0 0 0 2px var(--accent-soft);
 }
+
+.verseProgress {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.verseProgressBar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.verseProgressText {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.verseProgressText.low { color: #b42318; }
+.verseProgressText.mid { color: #b45309; }
+.verseProgressText.good { color: #157347; }
