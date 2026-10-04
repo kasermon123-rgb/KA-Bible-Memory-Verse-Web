@@ -177,6 +177,8 @@ const gameMemoryTitle = document.getElementById("gameMemoryTitle")
 
 const pagePractice = document.getElementById("pagePractice")
 const pageLibrary = document.getElementById("pageLibrary")
+const pageAdd = document.getElementById("pageAdd")
+const tabAdd = document.getElementById("tabAdd")
 const pageToday = document.getElementById("pageToday")
 const tabToday = document.getElementById("tabToday")
 const pageGame = document.getElementById("pageGame")
@@ -1769,6 +1771,7 @@ function showPage(name) {
   pageImportCsv.classList.add("isHidden")
   pagePractice.classList.add("isHidden")
   pageLibrary.classList.add("isHidden")
+  if (pageAdd) pageAdd.classList.add("isHidden")
   if (pageToday) pageToday.classList.add("isHidden")
   pageAddCollection.classList.add("isHidden")
   pageAddGroup.classList.add("isHidden")
@@ -1776,6 +1779,7 @@ function showPage(name) {
   pageSettings.classList.add("isHidden")
 
   tabLibrary.classList.remove("active")
+  if (tabAdd) tabAdd.classList.remove("active")
   if (tabToday) tabToday.classList.remove("active")
   tabSettings.classList.remove("active")
 
@@ -1790,6 +1794,12 @@ function showPage(name) {
     if (pageToday) pageToday.classList.remove("isHidden")
     if (tabToday) tabToday.classList.add("active")
     renderTodayPlan(verses)
+    return
+  }
+
+  if (name === "add") {
+    if (pageAdd) pageAdd.classList.remove("isHidden")
+    if (tabAdd) tabAdd.classList.add("active")
     return
   }
 
@@ -2367,6 +2377,7 @@ async function saveNewVerse() {
     })
     saveLocalLibrary()
     manageMsg.textContent = "Saved in this browser."
+    showPage("library")
     pasteBox.value = ""
     newTitle.value = ""
     newRef.value = ""
@@ -2395,6 +2406,7 @@ async function saveNewVerse() {
     })
 
     manageMsg.textContent = "Saved."
+    showPage("library")
     pasteBox.value = ""
     newTitle.value = ""
     newRef.value = ""
@@ -3669,6 +3681,7 @@ btnLogin.addEventListener("click", loginWithGoogle)
 btnLogout.addEventListener("click", logoutUser)
 
 tabLibrary.addEventListener("click", () => showPage("library"))
+if (tabAdd) tabAdd.addEventListener("click", () => showPage("add"))
 if (tabToday) tabToday.addEventListener("click", () => showPage("today"))
 const btnOpenLibrary = document.getElementById("btnOpenLibrary")
 if (btnOpenLibrary) btnOpenLibrary.addEventListener("click", () => showPage("library"))

@@ -57,6 +57,7 @@
                     <!-- Button to open the Library page -->
                     <button type="button" id="tabToday" class="tab active">Today</button>
                     <button type="button" id="tabLibrary" class="tab">Library</button>
+                    <button type="button" id="tabAdd" class="tab">Add</button>
 
                     <!-- Button to open the Settings page -->
                     <button type="button" id="tabSettings" class="tab">Settings</button>
@@ -282,13 +283,10 @@
             </section>
         </section>
 
-        <section id="pageLibrary" class="isHidden">
-
+                <section id="pageAdd" class="isHidden">
             <section class="card">
-
-                <h2>Library</h2>
-
-                <div class="row">
+                <h2>Add a verse</h2>
+<div class="row">
                     <label for="pasteBox">Paste from YouVersion</label>
                     <textarea id="pasteBox" rows="6"
                         placeholder="Paste copied verse text, reference, and link from YouVersion here">
@@ -343,7 +341,14 @@
 
                 <div class="result" id="ManageMsg"></div>
 
-                <hr class="sep">
+                            </section>
+        </section>
+
+<section id="pageLibrary" class="isHidden">
+
+            <section class="card">
+
+                <h2>Library</h2>
 
                 <div id="libraryFilters">
                     <div class="row">
