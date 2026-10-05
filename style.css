@@ -742,3 +742,6 @@ textarea:disabled {
 .planDay.active { border-color: var(--accent); color: var(--accent); }
 .planDay.hasPlan { font-weight: 700; }
 .planDay.isToday { text-decoration: underline; }
+
+.planCard { margin-top: 12px; }
+#planList { display: grid; gap: 12px; }

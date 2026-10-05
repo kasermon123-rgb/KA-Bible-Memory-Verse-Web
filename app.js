@@ -2037,11 +2037,31 @@ function renderTodayPlan(pool) {
     const verse = verses.find(item => item.id === id)
     if (!verse) return
     const row = document.createElement("div")
-    row.className = "planRow"
-    const name = document.createElement("div")
-    name.textContent = (verse.title || verse.ref || "Untitled") + " · " + verseTodayPercent(verse.id) + "%"
+    row.className = "customItem planCard"
+    const meta = document.createElement("div")
+    meta.className = "meta"
+    const title = document.createElement("div")
+    title.className = "verseTitle"
+    title.textContent = verse.title || verse.ref || "Untitled"
+    const small = document.createElement("small")
+    const source = [verse.collection && verse.collection !== "None" ? verse.collection : "", verse.group || ""].filter(Boolean).join(" · ")
+    small.textContent = (verse.ref || "") + (verse.version ? " (" + verse.version + ")" : "") + (source ? " · " + source : "")
+    const todayPercent = verseTodayPercent(verse.id)
+    const progressWrap = document.createElement("div")
+    progressWrap.className = "verseProgress"
+    const progressBar = document.createElement("div")
+    progressBar.className = "verseProgressBar"
+    progressBar.style.width = todayPercent + "%"
+    const progressText = document.createElement("div")
+    progressText.className = "verseProgressText" + (todayPercent === 100 ? " good" : todayPercent >= 50 ? " mid" : " low")
+    progressText.textContent = todayPercent + "%"
+    progressWrap.appendChild(progressBar)
+    progressWrap.appendChild(progressText)
+    meta.appendChild(title)
+    meta.appendChild(small)
+    meta.appendChild(progressWrap)
     const actions = document.createElement("div")
-    actions.className = "controls"
+    actions.className = "cardActions"
     const play = document.createElement("button")
     play.type = "button"
     play.textContent = "Play"
@@ -2057,7 +2077,7 @@ function renderTodayPlan(pool) {
     actions.appendChild(play)
     actions.appendChild(later)
     actions.appendChild(remove)
-    row.appendChild(name)
+    row.appendChild(meta)
     row.appendChild(actions)
     list.appendChild(row)
   })
