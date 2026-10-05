@@ -2046,7 +2046,9 @@ function renderTodayPlan(pool) {
 
   list.innerHTML = ""
   const chosen = plan.days[viewKey] || []
-  chosen.forEach(id => {
+  const doneIds = viewKey === todayKey() ? chosen.filter(id => verseTodayPercent(id) >= 100) : []
+  const openIds = chosen.filter(id => !doneIds.includes(id))
+  openIds.forEach(id => {
     const verse = verses.find(item => item.id === id)
     if (!verse) return
     const row = document.createElement("div")
@@ -2096,8 +2098,34 @@ function renderTodayPlan(pool) {
     row.appendChild(actions)
     list.appendChild(row)
   })
-  if (!chosen.length) list.innerHTML = `<div class="result">No verses for this date.</div>`
-  if (note) note.textContent = isPastPlanDay(viewKey) ? "This day is over. You can look, but not add or move verses." : "Pick today or a later day, then add verses from Library."
+  if (!openIds.length) list.insertAdjacentHTML("beforeend", `<div class="result">${chosen.length ? "All planned verses are done." : "No verses for this date."}</div>`)
+  if (doneIds.length) {
+    const done = document.createElement("details")
+    done.className = "doneFolder"
+    const summary = document.createElement("summary")
+    summary.textContent = "Done today: " + doneIds.length
+    done.appendChild(summary)
+    doneIds.forEach(id => {
+      const verse = verses.find(item => item.id === id)
+      if (!verse) return
+      const row = document.createElement("div")
+      row.className = "customItem planCard"
+      const meta = document.createElement("div")
+      meta.className = "meta"
+      const title = document.createElement("div")
+      title.className = "verseTitle"
+      title.textContent = verse.title || verse.ref || "Untitled"
+      const small = document.createElement("small")
+      const source = [verse.collection && verse.collection !== "None" ? verse.collection : "", verse.group || ""].filter(Boolean).join(" · ")
+      small.textContent = (verse.ref || "") + (verse.version ? " (" + verse.version + ")" : "") + (source ? " · " + source : "")
+      meta.appendChild(title)
+      meta.appendChild(small)
+      row.appendChild(meta)
+      done.appendChild(row)
+    })
+    list.appendChild(done)
+  }
+  if (note) note.textContent = isPastPlanDay(viewKey) ? "This day is over. You can look, but not add or move verses." : "Finished verses move into Done today."
 }
 
 function removePlanVerse(id, key) {

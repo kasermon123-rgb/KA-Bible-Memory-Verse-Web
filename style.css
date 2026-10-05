@@ -747,3 +747,6 @@ textarea:disabled {
 #planList { display: grid; gap: 12px; }
 
 .planDay.past { color: var(--muted); }
+
+.doneFolder { margin-top: 12px; }
+.doneFolder summary { cursor: pointer; font-weight: 700; }
