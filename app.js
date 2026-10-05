@@ -1966,7 +1966,19 @@ function ensureWeekPlan() {
   return plan
 }
 
+function isPastPlanDay(key) {
+  return key < todayKey()
+}
+
 function addVerseToPlan(id) {
+  if (isPastPlanDay(planSelected)) {
+    planSelected = todayKey()
+    planCursor = new Date()
+    showPage("today")
+    const note = document.getElementById("planNote")
+    if (note) note.textContent = "Past days cannot be changed. This verse was not added. Pick today or a later day."
+    return
+  }
   const plan = readPlan()
   const key = planSelected
   const list = plan.days[key] || []
@@ -2024,6 +2036,7 @@ function renderTodayPlan(pool) {
     button.className = "planDay" + (key === viewKey ? " active" : "") + (key === todayKey() ? " isToday" : "")
     button.textContent = String(day)
     if ((plan.days[key] || []).length) button.classList.add("hasPlan")
+    if (isPastPlanDay(key)) button.classList.add("past")
     button.addEventListener("click", () => {
       planSelected = key
       renderTodayPlan(verses)
@@ -2066,23 +2079,25 @@ function renderTodayPlan(pool) {
     play.type = "button"
     play.textContent = "Play"
     play.addEventListener("click", () => openGamePicker(verse.id))
-    const later = document.createElement("button")
-    later.type = "button"
-    later.textContent = "Later"
-    later.addEventListener("click", () => movePlanVerseLater(verse.id, viewKey))
-    const remove = document.createElement("button")
-    remove.type = "button"
-    remove.textContent = "Remove"
-    remove.addEventListener("click", () => removePlanVerse(verse.id, viewKey))
     actions.appendChild(play)
-    actions.appendChild(later)
-    actions.appendChild(remove)
+    if (!isPastPlanDay(viewKey)) {
+      const later = document.createElement("button")
+      later.type = "button"
+      later.textContent = "Later"
+      later.addEventListener("click", () => movePlanVerseLater(verse.id, viewKey))
+      const remove = document.createElement("button")
+      remove.type = "button"
+      remove.textContent = "Remove"
+      remove.addEventListener("click", () => removePlanVerse(verse.id, viewKey))
+      actions.appendChild(later)
+      actions.appendChild(remove)
+    }
     row.appendChild(meta)
     row.appendChild(actions)
     list.appendChild(row)
   })
   if (!chosen.length) list.innerHTML = `<div class="result">No verses for this date.</div>`
-  if (note) note.textContent = "Pick a date, then add verses from Library."
+  if (note) note.textContent = isPastPlanDay(viewKey) ? "This day is over. You can look, but not add or move verses." : "Pick today or a later day, then add verses from Library."
 }
 
 function removePlanVerse(id, key) {
@@ -3740,12 +3755,15 @@ const planNext = document.getElementById("planNext")
 const planDate = document.getElementById("planDate")
 if (planPrev) planPrev.addEventListener("click", () => shiftPlanMonth(-1))
 if (planNext) planNext.addEventListener("click", () => shiftPlanMonth(1))
-if (planDate) planDate.addEventListener("change", () => {
+if (planDate) {
+  planDate.min = todayKey()
+  planDate.addEventListener("change", () => {
   if (!planDate.value) return
   planSelected = planDate.value
   planCursor = new Date(planDate.value + "T00:00:00")
   renderTodayPlan(verses)
 })
+}
 const btnOpenLibrary = document.getElementById("btnOpenLibrary")
 if (btnOpenLibrary) btnOpenLibrary.addEventListener("click", () => showPage("library"))
 tabSettings.addEventListener("click", () => showPage("settings"))

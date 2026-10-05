@@ -745,3 +745,5 @@ textarea:disabled {
 
 .planCard { margin-top: 12px; }
 #planList { display: grid; gap: 12px; }
+
+.planDay.past { color: var(--muted); }
