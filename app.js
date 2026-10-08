@@ -356,6 +356,7 @@ onAuthStateChanged(auth, async (user) => {
     updateGroupState()
     await loadVersesFromCloud()
     await loadPlanFromCloud()
+    await loadVerseProgressFromCloud()
     setSaveFoot()
   } else {
     authMsg.textContent = "Not signed in. Verses are saved in this browser only."
@@ -511,6 +512,7 @@ async function deleteCurrentAccountAfterReauth() {
   await deleteCollectionDocsByPath(["users", uid, "collections"])
 
   await deleteDoc(doc(db, "users", uid, "meta", "plan")).catch(() => {})
+  await deleteDoc(doc(db, "users", uid, "meta", "verseProgress")).catch(() => {})
   await deleteDoc(doc(db, "users", uid))
   await deleteUser(currentUser)
 
@@ -1454,12 +1456,42 @@ function verseTodayPercent(id) {
   return Math.max(0, Math.min(100, Number(progress.verses[id] || 0)))
 }
 
+function saveVerseProgress(progress) {
+  localStorage.setItem(VERSE_PROGRESS_KEY, JSON.stringify(progress))
+  if (currentUser) {
+    setDoc(doc(db, "users", currentUser.uid, "meta", "verseProgress"), {
+      date: progress.date,
+      verses: progress.verses || {}
+    }).catch(error => console.error("Save verse progress failed:", error))
+  }
+}
+
 function addVerseTodayPercent(id, gain, fill) {
   const progress = readVerseProgress()
   const current = Number(progress.verses[id] || 0)
   progress.verses[id] = fill ? 100 : Math.min(100, current + gain)
-  localStorage.setItem(VERSE_PROGRESS_KEY, JSON.stringify(progress))
+  saveVerseProgress(progress)
   renderLibrary()
+  renderTodayPlan(verses)
+}
+
+async function loadVerseProgressFromCloud() {
+  if (!currentUser) return
+  try {
+    const snap = await getDoc(doc(db, "users", currentUser.uid, "meta", "verseProgress"))
+    if (snap.exists() && snap.data().date === todayKey()) {
+      const data = snap.data()
+      localStorage.setItem(VERSE_PROGRESS_KEY, JSON.stringify({
+        date: data.date,
+        verses: data.verses && typeof data.verses === "object" ? data.verses : {}
+      }))
+    } else if (!snap.exists()) {
+      saveVerseProgress(readVerseProgress())
+    }
+    renderTodayPlan(verses)
+  } catch (error) {
+    console.error("Load verse progress failed:", error)
+  }
 }
 
 function showPracticeScore(parts) {
