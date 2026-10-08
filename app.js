@@ -355,6 +355,7 @@ onAuthStateChanged(auth, async (user) => {
     await loadGroupsFromCloud()
     updateGroupState()
     await loadVersesFromCloud()
+    await loadPlanFromCloud()
     setSaveFoot()
   } else {
     authMsg.textContent = "Not signed in. Verses are saved in this browser only."
@@ -509,6 +510,7 @@ async function deleteCurrentAccountAfterReauth() {
   await deleteCollectionDocsByPath(["users", uid, "groups"])
   await deleteCollectionDocsByPath(["users", uid, "collections"])
 
+  await deleteDoc(doc(db, "users", uid, "meta", "plan")).catch(() => {})
   await deleteDoc(doc(db, "users", uid))
   await deleteUser(currentUser)
 
@@ -1948,6 +1950,32 @@ function readPlan() {
 
 function savePlan(plan) {
   localStorage.setItem(PLAN_KEY, JSON.stringify(plan))
+  if (currentUser) {
+    setDoc(doc(db, "users", currentUser.uid, "meta", "plan"), {
+      perDay: plan.perDay || 3,
+      days: plan.days || {}
+    }).catch(error => console.error("Save plan failed:", error))
+  }
+}
+
+async function loadPlanFromCloud() {
+  if (!currentUser) return
+  try {
+    const snap = await getDoc(doc(db, "users", currentUser.uid, "meta", "plan"))
+    if (snap.exists()) {
+      const data = snap.data()
+      const plan = {
+        perDay: Math.max(1, Math.min(20, Number(data.perDay) || 3)),
+        days: data.days && typeof data.days === "object" ? data.days : {}
+      }
+      localStorage.setItem(PLAN_KEY, JSON.stringify(plan))
+    } else {
+      savePlan(readPlan())
+    }
+    renderTodayPlan(verses)
+  } catch (error) {
+    console.error("Load plan failed:", error)
+  }
 }
 
 function dayKeyFromOffset(offset) {
